@@ -1,0 +1,66 @@
+# Konfigurasi Netlify — Aplikasi Kost Muslimah Mahira
+# Situs ini statis sepenuhnya: tidak ada proses build, cukup unggah folder ini.
+
+[build]
+  publish = "."
+  command = ""
+
+# Berkas panduan dan kode server tidak boleh bisa dibuka publik.
+[[redirects]]
+  from = "/README.md"
+  to = "/"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/PANDUAN-SERVER.md"
+  to = "/"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/kost-server.gs"
+  to = "/"
+  status = 302
+  force = true
+
+# Alamat pintas menuju panel admin: https://situs-anda.netlify.app/admin
+[[redirects]]
+  from = "/admin"
+  to = "/index.html#admin"
+  status = 302
+
+# Semua alamat yang tidak dikenal diarahkan ke halaman utama.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Berkas alamat server harus selalu dibaca versi terbaru.
+[[headers]]
+  for = "/konfigurasi.json"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Foto yang disimpan bersama situs (pelat nomor sudah disensor).
+[[headers]]
+  for = "/foto/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+[[headers]]
+  for = "/*.pdf"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
