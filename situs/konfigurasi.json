@@ -1,3 +1,5 @@
 {
-  "serverUrl": "https://script.google.com/macros/s/AKfycbwkGVTfe8zIK9WTpx9dRxoTyfSnJhFcw1swPCz5APLgrZyIo3KgsR5ZfBnp9dHryUHYag/exec"
+  "serverUrl": "https://script.google.com/macros/s/AKfycbwkGVTfe8zIK9WTpx9dRxoTyfSnJhFcw1swPCz5APLgrZyIo3KgsR5ZfBnp9dHryUHYag/exec",
+  "supabaseUrl": "https://mofefpeikzzakftfoptq.supabase.co",
+  "supabaseAnonKey": "sb_publishable_XNSaYel4bfkQaxNavygRuw_TJJ9KYuB"
 }

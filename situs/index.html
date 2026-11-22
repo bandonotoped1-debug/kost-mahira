@@ -440,21 +440,9 @@ section.blk{padding:64px 0;scroll-margin-top:70px}
 .wa-kunci code,p code{background:var(--brand-soft);color:var(--brand-deep);border-radius:5px;padding:1px 6px;
   font-family:ui-monospace,monospace;font-size:11.5px}
 @media(max-width:560px){.wa-head b{margin-right:0;width:100%}}
-.kw-box{border:1px solid var(--line-soft);border-radius:12px;overflow:hidden;background:var(--surface-2)}
-.kw-row{display:flex;justify-content:space-between;gap:12px;padding:9px 13px;font-size:13.5px;align-items:center}
-.kw-row+.kw-row{border-top:1px solid var(--line-soft)}
-.kw-row b{font-size:15px;font-family:var(--display)}
-.kw-row.bad{color:var(--bad)}
-.kw-row.ok{color:var(--ok)}
-.kw-cepat{display:flex;gap:8px;flex-wrap:wrap}
-.kw-manual summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:6px 0}
-.kw-manual summary:hover{color:var(--ink)}
-.khusus-box{border:1px solid var(--line-soft);border-radius:12px;padding:13px 14px;background:var(--surface-2)}
-.khusus-box .sw{font-size:13.5px;font-weight:500}
-.khusus-box .sw b{font-weight:700}
-.khusus-isi{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
-.bar-bayar{height:5px;border-radius:3px;background:var(--line);margin:5px 0 3px;overflow:hidden;min-width:96px}
-.bar-bayar i{display:block;height:100%;background:var(--ok);border-radius:3px}
+.bahaya{margin-top:18px;border:1px solid var(--bad);border-radius:12px;padding:14px;background:var(--bad-soft)}
+.bahaya b{font-size:13.5px;color:var(--bad);font-family:var(--display)}
+.bahaya p{font-size:13px;color:var(--ink-2);margin-top:5px;max-width:78ch}
 .diskon-row{display:flex;gap:10px;align-items:flex-end}
 .diskon-row .field{flex:1;max-width:220px}
 .diskon-row .btn{padding:8px 12px}
@@ -581,6 +569,7 @@ footer.site{border-top:1px solid var(--line-soft);padding:26px 0;font-size:12.5p
     window.__warmKonfig = fetch("konfigurasi.json?t=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
+        window.__warmJson = j;
         var u = j && (j.serverUrl || j.server || j.url);
         if (!u || String(u).indexOf("http") !== 0) return "";
         u = String(u).trim();
@@ -625,27 +614,26 @@ var KONFIG = { url: String(SERVER_URL || "").trim(), sumber: SERVER_URL ? "terta
 
 /* Membaca konfigurasi.json bila alamat belum ditanam di berkas ini. */
 function muatKonfigurasi() {
-  if (KONFIG.url) return Promise.resolve(KONFIG.url);
-  /* Alamat server sudah mulai diambil oleh skrip pemanasan di atas halaman. */
+  /* Alamat Supabase dibaca terpisah dari alamat Apps Script, supaya tetap
+     terbaca walaupun alamat Apps Script sudah tertanam di berkas ini. */
+  function pakai(j) {
+    if (j && j.supabaseUrl && j.supabaseAnonKey) sbPasang(j.supabaseUrl, j.supabaseAnonKey);
+    var u = j && (j.serverUrl || j.server || j.url);
+    if (!KONFIG.url && u && String(u).indexOf("http") === 0) {
+      KONFIG.url = String(u).trim();
+      KONFIG.sumber = "berkas konfigurasi.json";
+    }
+    return KONFIG.url;
+  }
+  /* Berkasnya sudah mulai diambil oleh skrip pemanasan di atas halaman. */
   if (window.__warmKonfig) {
-    return window.__warmKonfig.then(function (u) {
-      if (u && String(u).indexOf("http") === 0) {
-        KONFIG.url = String(u).trim();
-        KONFIG.sumber = "berkas konfigurasi.json";
-      }
-      return KONFIG.url;
-    }).catch(function () { return KONFIG.url; });
+    return window.__warmKonfig
+      .then(function () { return pakai(window.__warmJson); })
+      .catch(function () { return KONFIG.url; });
   }
   return fetch("konfigurasi.json?t=" + Date.now(), { cache: "no-store" })
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (j) {
-      var u = j && (j.serverUrl || j.server || j.url);
-      if (u && String(u).indexOf("http") === 0) {
-        KONFIG.url = String(u).trim();
-        KONFIG.sumber = "berkas konfigurasi.json";
-      }
-      return KONFIG.url;
-    })
+    .then(pakai)
     .catch(function () { return KONFIG.url; });
 }
 
@@ -1048,172 +1036,17 @@ function hitungKamarTagihan(roomId, draft) {
     perBulanOrang: Math.round(perBulanKamar / n)
   };
 }
-/* ---------- kondisi khusus ----------
-   Potongan tambahan untuk penghuni tertentu, mis. kerabat, penghuni lama,
-   atau keringanan karena keadaan. Dihitung dari angsuran per bulan
-   SESUDAH diskon lama sewa dan pembagian patungan. */
-function potonganKhusus(t, dasar) {
-  if (!t || !t.khusus) return 0;
-  dasar = Number(dasar) || 0;
-  var nilai = Number(t.khususNilai) || 0;
-  if (nilai <= 0) return 0;
-  if (t.khususJenis === "persen") return Math.round(dasar * Math.min(100, nilai) / 100);
-  return Math.min(dasar, Math.round(nilai));
-}
-function labelKhusus(t) {
-  if (!t || !t.khusus) return "";
-  var nilai = Number(t.khususNilai) || 0;
-  if (nilai <= 0) return "Kondisi khusus";
-  return t.khususJenis === "persen" ? "Potongan " + nilai + "%" : "Potongan " + rp(nilai) + "/bulan";
-}
-
 /* Menyamakan tarif seluruh penghuni satu kamar setelah ada perubahan. */
 function recalcKamar(roomId) {
   if (!roomId) return null;
   var h = hitungKamarTagihan(roomId);
   activeTenants(roomId).forEach(function (t) {
-    t.tarifDasar = h.perBulanOrang;
-    t.potongan = potonganKhusus(t, h.perBulanOrang);
-    t.tarif = Math.max(0, h.perBulanOrang - t.potongan);
+    t.tarif = h.perBulanOrang;
     t.tarifKamar = h.perBulanKamar;
     t.jumlahPenghuni = h.n;
   });
   return h;
 }
-/* ============================================================
-   BUKU KEWAJIBAN PENGHUNI
-   ------------------------------------------------------------
-   Kewajiban seorang penghuni selama kontraknya = angsuran per bulan
-   dikali lama kontrak. Angsuran itu sudah memperhitungkan diskon lama
-   sewa, patungan sekamar, potongan DP, dan potongan kondisi khusus.
-
-   Pembayaran boleh masuk dengan cara apa pun: per bulan, lunas di awal
-   untuk beberapa bulan sekaligus, atau sebagian. Setiap setoran dibagi
-   ke bulan-bulan yang belum lunas, mulai dari yang paling awal. Bila
-   seluruh kewajiban sudah terbayar, tagihan bulan berikutnya tidak
-   diterbitkan lagi.
-   ============================================================ */
-function tagihanTenant(id) {
-  return S.payments.filter(function (p) { return p.tenantId === id; })
-    .sort(function (a, b) { return a.periode < b.periode ? -1 : a.periode > b.periode ? 1 : 0; });
-}
-function hitungKewajiban(t) {
-  var kosong = {
-    tarif: 0, bulan: 0, total: 0, ditagih: 0, dibayar: 0, sisa: 0,
-    belumDitagih: 0, lunas: false, tunggakan: 0, bulanLunas: 0, kelebihan: 0
-  };
-  if (!t) return kosong;
-  var tarif = Number(t.tarif) || 0;
-  var bulan = Math.max(1, Number(t.bulanKontrak) || 1);
-  var total = tarif * bulan;
-  var rows = tagihanTenant(t.id);
-  var ditagih = 0, dibayar = 0, tunggakan = 0;
-  var now = periodNow();
-  rows.forEach(function (p) {
-    var tg = Number(p.tagihan) || 0, db = Number(p.dibayar) || 0;
-    ditagih += tg; dibayar += db;
-    if (p.periode <= now) tunggakan += Math.max(0, tg - db);
-  });
-  return {
-    tarif: tarif, bulan: bulan, total: total, ditagih: ditagih, dibayar: dibayar,
-    sisa: Math.max(0, total - dibayar),
-    belumDitagih: Math.max(0, total - ditagih),
-    lunas: total > 0 && dibayar >= total,
-    tunggakan: tunggakan,
-    bulanLunas: tarif ? Math.min(bulan, Math.floor(dibayar / tarif)) : 0,
-    kelebihan: Math.max(0, dibayar - total)
-  };
-}
-/* Bulan kontrak paling awal yang belum punya tagihan. */
-function periodeBerikut(t) {
-  var mulai = String(t.masuk || todayISO()).slice(0, 7);
-  var bulan = Math.max(1, Number(t.bulanKontrak) || 1);
-  for (var i = 0; i < bulan; i++) {
-    var per = shiftPeriod(mulai, i);
-    if (!payOf(t.id, per)) return per;
-  }
-  return "";
-}
-/* Membagi satu setoran ke bulan-bulan yang belum lunas, paling awal dulu.
-   Bulan yang belum punya tagihan dibuatkan otomatis selama kewajiban
-   kontrak belum habis. Mengembalikan daftar bulan yang tersentuh. */
-function alokasiSetoran(tenantId, jumlah, info) {
-  var t = tenant(tenantId);
-  jumlah = Math.round(Number(jumlah) || 0);
-  if (!t || jumlah <= 0) return [];
-  var sisaUang = jumlah;
-  var kena = [];
-  var putar = 0;
-  while (sisaUang > 0 && putar < 120) {
-    putar++;
-    var kurang = tagihanTenant(t.id).filter(function (p) {
-      return (Number(p.dibayar) || 0) < (Number(p.tagihan) || 0);
-    })[0];
-    if (!kurang) {
-      var k = hitungKewajiban(t);
-      var per = k.belumDitagih > 0 ? periodeBerikut(t) : "";
-      if (!per) break;
-      kurang = {
-        id: uid("P"), tenantId: t.id, roomId: t.roomId, periode: per,
-        tagihan: Math.min(k.tarif, k.belumDitagih), dibayar: 0,
-        tanggal: "", metode: "", catatan: ""
-      };
-      S.payments.push(kurang);
-    }
-    var perlu = (Number(kurang.tagihan) || 0) - (Number(kurang.dibayar) || 0);
-    var bayar = Math.min(perlu, sisaUang);
-    if (bayar <= 0) break;
-    kurang.dibayar = (Number(kurang.dibayar) || 0) + bayar;
-    sisaUang -= bayar;
-    if (info) {
-      kurang.tanggal = info.tanggal || kurang.tanggal || todayISO();
-      if (info.metode) kurang.metode = info.metode;
-      if (info.catatan) kurang.catatan = kurang.catatan ? kurang.catatan + "; " + info.catatan : info.catatan;
-    }
-    if (kena.indexOf(kurang.periode) < 0) kena.push(kurang.periode);
-  }
-  /* Uang yang melebihi seluruh kewajiban kontrak tetap dicatat di bulan
-     terakhir supaya jumlah uang masuk tidak hilang dari pembukuan. */
-  if (sisaUang > 0) {
-    var semua = tagihanTenant(t.id);
-    var akhir = semua[semua.length - 1];
-    if (akhir) {
-      akhir.dibayar = (Number(akhir.dibayar) || 0) + sisaUang;
-      var pesan = "kelebihan bayar " + rp(sisaUang);
-      akhir.catatan = akhir.catatan ? akhir.catatan + "; " + pesan : pesan;
-      if (kena.indexOf(akhir.periode) < 0) kena.push(akhir.periode);
-    }
-  }
-  return kena;
-}
-/* Menyesuaikan tagihan yang BELUM ada pembayarannya supaya jumlah seluruh
-   tagihan tidak melebihi kewajiban kontrak. Tagihan yang sudah ada uangnya
-   tidak diutak-atik, dan tagihan kosong yang tidak lagi diperlukan dihapus. */
-function rapikanTagihan(tenantId) {
-  var t = tenant(tenantId);
-  if (!t) return;
-  var k = hitungKewajiban(t);
-  var rows = tagihanTenant(t.id);
-  var terkunci = 0;
-  rows.forEach(function (p) { if (Number(p.dibayar) > 0) terkunci += Number(p.tagihan) || 0; });
-  var sisaUntukTagihan = Math.max(0, k.total - terkunci);
-  var buang = [];
-  rows.forEach(function (p) {
-    if (Number(p.dibayar) > 0) return;
-    var nilai = Math.min(k.tarif, sisaUntukTagihan);
-    if (nilai <= 0) { buang.push(p.id); return; }
-    p.tagihan = nilai;
-    sisaUntukTagihan -= nilai;
-  });
-  if (buang.length) {
-    S.payments = S.payments.filter(function (p) { return buang.indexOf(p.id) < 0; });
-  }
-}
-/* Dipanggil setelah tarif kamar berubah. */
-function segarkanTagihan(roomId) {
-  activeTenants(roomId).forEach(function (t) { rapikanTagihan(t.id); });
-}
-
 /* ---------- pencegah data ganda ---------- */
 function normNama(n) { return String(n || "").toLowerCase().replace(/\s+/g, " ").trim(); }
 function cariDuplikat(nama, hp, kecualiId) {
@@ -1356,20 +1189,6 @@ var WA_BAWAAN = {
       "Mohon konfirmasinya nggih, apakah Mbak berkenan memperpanjang masa sewanya?\n\n" +
       "Terima kasih banyak."
   },
-  tagih: {
-    judul: "Admin mengingatkan pembayaran",
-    catatan: "Terisi saat admin menekan tombol WhatsApp di daftar pembayaran. {tunggakan} = seluruh tunggakan sampai bulan ini, {sisaKontrak} = sisa kewajiban seluruh masa sewa.",
-    kunci: ["kost", "nama", "kamar", "periode", "jumlah", "sisa", "tunggakan", "sisaKontrak"],
-    contoh: {
-      kost: "Kost Muslimah Mahira", nama: "Laila Rahma", kamar: "Alifa 2",
-      periode: "September 2026", jumlah: "Rp 320.000", sisa: " (sisa dari tagihan Rp 520.000)",
-      tunggakan: "Rp 320.000", sisaKontrak: "Rp 1.530.000"
-    },
-    teks: "Assalamu'alaikum warahmatullahi wabarakatuh, Mbak {nama}.\n\n" +
-      "Ini admin {kost}. Semoga Mbak sehat selalu.\n\n" +
-      "Izin mengingatkan dengan hormat, pembayaran kamar {kamar} periode {periode} sebesar {jumlah}{sisa}.\n\n" +
-      "Mohon konfirmasinya bila sudah ditransfer nggih. Terima kasih banyak."
-  },
   partner: {
     judul: "Pesan cadangan ke partner",
     catatan: "Dipakai bila kolom pesan pada data partner dikosongkan.",
@@ -1482,14 +1301,205 @@ var adminAktif = null;         /* admin yang sedang masuk */
 var statusDariServer = false;  /* status kamar berasal dari server (perangkat pengunjung) */
 var adaPembaruanTertunda = false;
 
+/* ============================================================
+   PENYIMPANAN SUPABASE (opsional)
+   ------------------------------------------------------------
+   Aktif begitu konfigurasi.json berisi supabaseUrl dan
+   supabaseAnonKey. Selama belum diisi, aplikasi tetap memakai
+   server Google Apps Script seperti biasa.
+
+   Pembagian tabelnya mengikuti siapa yang boleh melihat:
+     kost_pengaturan - setelan, kamar, fasilitas, ulasan, partner.
+                       Boleh dibaca umum, dipakai halaman depan.
+     kost_penghuni   - data pribadi penghuni. Tertutup, hanya admin
+                       yang sudah masuk lewat Supabase Auth.
+     kost_booking    - booking dari pengunjung. Boleh dikirim siapa
+                       saja, hanya admin yang boleh membacanya.
+   Aturan itu ditegakkan oleh RLS di sisi Supabase, bukan di sini.
+   Lihat supabase/skema.sql.
+   ============================================================ */
+var SB = { url: "", anon: "", token: "", email: "", galat: "" };
+
+function sbAktif() { return SB.url.indexOf("http") === 0 && !!SB.anon; }
+function sbPasang(url, anon) {
+  SB.url = String(url || "").trim().replace(/\/+$/, "");
+  SB.anon = String(anon || "").trim();
+}
+function sbKepala(pakaiToken) {
+  var h = { apikey: SB.anon, "Content-Type": "application/json" };
+  h.Authorization = "Bearer " + ((pakaiToken && SB.token) || SB.anon);
+  return h;
+}
+function sbMinta(jalur, opsi) {
+  opsi = opsi || {};
+  return fetch(SB.url + "/rest/v1/" + jalur, {
+    method: opsi.method || "GET",
+    headers: Object.assign(sbKepala(true), opsi.headers || {}),
+    body: opsi.body ? JSON.stringify(opsi.body) : undefined
+  }).then(function (r) {
+    /* Permintaan dengan Prefer: return=minimal dijawab tanpa isi, jadi
+       badannya dibaca sebagai teks dulu sebelum dicoba diurai. */
+    return r.text().then(function (teks) {
+      var j = null;
+      if (teks) { try { j = JSON.parse(teks); } catch (e) { j = null; } }
+      if (!r.ok) {
+        throw new Error((j && (j.message || j.error_description || j.hint)) ||
+          ("Supabase menolak permintaan (" + r.status + ")"));
+      }
+      return j;
+    });
+  });
+}
+
+/* ---- masuk sebagai admin memakai email dan kata sandi Supabase ---- */
+function sbMasuk(email, sandi) {
+  return fetch(SB.url + "/auth/v1/token?grant_type=password", {
+    method: "POST",
+    headers: { apikey: SB.anon, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email, password: sandi })
+  }).then(function (r) { return r.json(); }).then(function (j) {
+    if (!j || !j.access_token) {
+      return { ok: false, error: (j && (j.error_description || j.msg)) || "Email atau kata sandi salah" };
+    }
+    SB.token = j.access_token;
+    SB.email = (j.user && j.user.email) || email;
+    return { ok: true, email: SB.email };
+  });
+}
+function sbKeluar() { SB.token = ""; SB.email = ""; }
+
+/* ---- membaca bagian yang boleh dilihat umum ---- */
+function sbMuatPublik() {
+  return sbMinta("kost_pengaturan?id=eq.1&select=data,updated_at").then(function (rows) {
+    var baris = (rows || [])[0];
+    /* "kosong" dipakai saat Supabase belum pernah diisi sama sekali.
+       Pemanggilnya lalu jatuh kembali ke Apps Script, supaya halaman
+       depan tidak mendadak kosong di tengah masa pindahan. */
+    if (!baris || !baris.data || !baris.data.rooms) return "kosong";
+    var berubah = terapkanPublik(baris.data);
+    S.publikAt = Date.parse(baris.updated_at) || Date.now();
+    S.settings.server.terakhir = Date.now();
+    saveLocal();
+    if (berubah) gambarUlangAman();
+    return berubah;
+  });
+}
+
+/* ---- membaca seluruh data untuk admin ---- */
+function sbMuatAdmin() {
+  return Promise.all([
+    sbMinta("kost_pengaturan?id=eq.1&select=data"),
+    sbMinta("kost_penghuni?select=data&order=masuk.desc"),
+    sbMinta("kost_booking?select=data&order=dibuat.desc")
+  ]).then(function (hasil) {
+    var set = ((hasil[0] || [])[0] || {}).data || {};
+    if (!set.rooms) return { ok: true, kosong: true };
+    var baru = defaultState();
+    ["settings", "rooms", "fasilitas", "ulasan", "partners", "ketentuan", "peraturan"].forEach(function (k) {
+      if (set[k]) baru[k] = set[k];
+    });
+    baru.tenants = (hasil[1] || []).map(function (x) { return x.data; }).filter(Boolean);
+    baru.bookings = (hasil[2] || []).map(function (x) { return x.data; }).filter(Boolean);
+    baru.payments = [];
+    var urlLokal = (S.settings && S.settings.server && S.settings.server.url) || "";
+    S = baru;
+    S.settings.server = Object.assign({ url: urlLokal, terakhir: Date.now() }, S.settings.server || {});
+    S.settings.admins = normalkanAdmins(S.settings);
+    syncRoomStatus();
+    saveLocal();
+    return { ok: true, kosong: false };
+  });
+}
+
+/* ---- menyimpan seluruh data ---- */
+function sbSimpan() {
+  if (!SB.token) return Promise.reject(new Error("Masuk dulu sebagai admin Supabase"));
+  var set = {};
+  ["settings", "rooms", "fasilitas", "ulasan", "partners", "ketentuan", "peraturan"].forEach(function (k) {
+    set[k] = S[k];
+  });
+  var pros = [
+    sbMinta("kost_pengaturan?on_conflict=id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: [{ id: 1, data: set, updated_at: new Date().toISOString(), updated_by: SB.email }]
+    })
+  ];
+  if (S.tenants.length) {
+    pros.push(sbMinta("kost_penghuni?on_conflict=id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: S.tenants.map(sbBarisPenghuni)
+    }));
+  }
+  if (S.bookings.length) {
+    pros.push(sbMinta("kost_booking?on_conflict=id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: S.bookings.map(sbBarisBooking)
+    }));
+  }
+  return Promise.all(pros)
+    .then(function () { return sbBuangYangHilang("kost_penghuni", S.tenants); })
+    .then(function () { return sbBuangYangHilang("kost_booking", S.bookings); })
+    .then(function () {
+      S.settings.server.terakhir = Date.now();
+      saveLocal();
+      return true;
+    });
+}
+function sbBarisPenghuni(t) {
+  return {
+    id: t.id, nama: t.nama || "", hp: t.hp || "", kamar: (room(t.roomId) || {}).nama || "",
+    pekerjaan: t.pekerjaan || "", institusi: t.institusi || "",
+    masuk: t.masuk || null, keluar: t.keluar || null,
+    bulan_kontrak: Number(t.bulanKontrak) || null, tarif: Number(t.tarif) || 0,
+    dp: Number(t.dp) || 0, kasur: !!t.kasur, ktp: t.ktp || "belum",
+    status: t.status || "aktif", catatan: t.catatan || "",
+    data: t, updated_at: new Date().toISOString()
+  };
+}
+function sbBarisBooking(b) {
+  return {
+    id: b.id, nama: b.nama || "", hp: b.hp || "", kamar: (room(b.roomId) || {}).nama || "",
+    masuk: b.masuk || null, bulan: Number(b.bulan) || null, orang: Number(b.orang) || 1,
+    status: b.status || "aktif", catatan: b.catatan || "", data: b
+  };
+}
+/* Baris yang sudah tidak ada di aplikasi ikut dihapus di Supabase,
+   supaya "Reset data penghuni" benar-benar bersih sampai ke server. */
+function sbBuangYangHilang(tabel, daftar) {
+  var id = daftar.map(function (x) { return x.id; }).filter(Boolean);
+  var jalur = tabel + "?select=id";
+  return sbMinta(jalur).then(function (rows) {
+    var buang = (rows || []).map(function (r) { return r.id; })
+      .filter(function (x) { return id.indexOf(x) < 0; });
+    if (!buang.length) return true;
+    var daftarId = buang.map(function (x) { return '"' + String(x).replace(/"/g, "") + '"'; }).join(",");
+    return sbMinta(tabel + "?id=in.(" + daftarId + ")", {
+      method: "DELETE", headers: { Prefer: "return=minimal" }
+    }).then(function () { return true; });
+  });
+}
+
+/* ---- booking dari pengunjung, tanpa perlu masuk ---- */
+function sbKirimBooking(b) {
+  return fetch(SB.url + "/rest/v1/kost_booking", {
+    method: "POST",
+    headers: { apikey: SB.anon, Authorization: "Bearer " + SB.anon, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify([sbBarisBooking(b)])
+  }).then(function (r) { return r.ok; }).catch(function () { return false; });
+}
+
 function srvUrl() {
   var u = KONFIG.url || (S && S.settings && S.settings.server && S.settings.server.url) || "";
   return String(u || "").trim();
 }
-function srvAktif() { return srvUrl().indexOf("http") === 0; }
+function srvAktif() { return sbAktif() || srvUrl().indexOf("http") === 0; }
 function syncAktif() { return srvAktif(); }   /* nama lama, dipakai di beberapa tempat */
 
 function srvSumber() {
+  if (sbAktif()) return "Supabase";
   if (KONFIG.url) return KONFIG.sumber || "tertanam di aplikasi";
   if (S && S.settings && S.settings.server && S.settings.server.url) return "disimpan di perangkat ini saja";
   return "";
@@ -1503,6 +1513,7 @@ function waktuSingkat(ms) {
 function srvStatusText() {
   if (!srvAktif()) return "Server belum dipasang";
   if (srv.galat) return "Server tidak terhubung";
+  if (sbAktif() && !SB.token && unlocked) return "Supabase: belum masuk";
   if (srv.memuat) return "Menghubungi server...";
   var t = (S.settings.server && S.settings.server.terakhir) || 0;
   if (!t) return "Terhubung server";
@@ -1626,6 +1637,31 @@ function gambarUlangAman() {
 function srvMuatPublik(paksa, diam) {
   if (!srvAktif()) { if (!diam) toast("Alamat server belum dipasang di aplikasi"); return Promise.resolve(false); }
   if (srv.memuat) return Promise.resolve(false);
+  if (sbAktif()) {
+    srv.memuat = true;
+    return sbMuatPublik().then(function (berubah) {
+      /* Supabase masih kosong dan alamat Apps Script lama masih ada:
+         pakai yang lama dulu. Begitu admin menekan "Kirim ke server",
+         Supabase terisi dan cabang ini tidak terpakai lagi. */
+      if (berubah === "kosong" && KONFIG.url) {
+        srv.memuat = false;
+        return srvMuatPublikLama(true, diam);
+      }
+      srv.memuat = false; srv.galat = ""; srv.terakhirCek = Date.now(); tandaiSegar();
+      if (!diam) toast(berubah ? "Data terbaru dimuat dari Supabase" : "Data di layar sudah yang terbaru");
+      return berubah === "kosong" ? false : berubah;
+    }).catch(function (e) {
+      srv.memuat = false; srv.galat = String((e && e.message) || e); tandaiSegar();
+      if (!diam) toast("Tidak dapat menghubungi Supabase: " + srv.galat);
+      return false;
+    });
+  }
+  return srvMuatPublikLama(paksa, diam);
+}
+
+/* Pembacaan lewat Google Apps Script — penyimpanan lama. */
+function srvMuatPublikLama(paksa, diam) {
+  if (srv.memuat) return Promise.resolve(false);
   srv.memuat = true;
   var punya = Number(S.publikAt || 0);
   var mode = (paksa || !punya) ? "publik" : "cek";
@@ -1636,7 +1672,7 @@ function srvMuatPublik(paksa, diam) {
       srv.galat = ""; srv.terakhirCek = Date.now();
       if (j.mode === "cek") {
         if (Number(j.updatedAt || 0) <= punya) { tandaiSegar(); return false; }
-        return srvMuatPublik(true, diam);
+        return srvMuatPublikLama(true, diam);
       }
       var berubah = terapkanPublik(j.publik);
       if (berubah) {
@@ -1696,6 +1732,24 @@ function pakaiDataServer(d) {
 /* ---- simpan ke server (hanya admin yang sudah masuk) ---- */
 function srvSimpan(diam) {
   if (!srvAktif()) { if (!diam) toast("Alamat server belum dipasang di aplikasi"); return Promise.resolve(false); }
+  if (sbAktif()) {
+    if (!SB.token) {
+      if (!diam) toast("Masuk dulu sebagai admin Supabase untuk menyimpan");
+      return Promise.resolve(false);
+    }
+    if (srv.sibuk) { srv.antre = true; return Promise.resolve(false); }
+    srv.sibuk = true;
+    return sbSimpan().then(function () {
+      srv.sibuk = false; srv.galat = ""; tandaiSegar();
+      if (!diam) toast("Tersimpan di Supabase. Semua perangkat ikut terbarui.");
+      if (srv.antre) { srv.antre = false; srvJadwalkanSimpan(); }
+      return true;
+    }).catch(function (e) {
+      srv.sibuk = false; srv.galat = String((e && e.message) || e); tandaiSegar();
+      toast("Gagal menyimpan ke Supabase: " + srv.galat);
+      return false;
+    });
+  }
   if (!adminAktif || !adminAktif.kode) {
     if (!diam) toast("Masuk sebagai admin dulu untuk menyimpan ke server");
     return Promise.resolve(false);
@@ -1749,6 +1803,7 @@ function syncJadwalkan() { srvJadwalkanSimpan(); }
 
 /* ---- booking dari pengunjung langsung masuk ke server ---- */
 function srvKirimBooking(b) {
+  if (sbAktif()) return sbKirimBooking(b);
   if (!srvAktif()) return Promise.resolve(false);
   return srvPost({ aksi: "booking", booking: b })
     .then(function (j) { return !!(j && j.ok === true); })
@@ -1777,6 +1832,19 @@ function srvPantau() {
 
 /* Admin: ambil ulang data lengkap bila ada admin lain yang menyimpan */
 function srvSegarkanAdmin(diam) {
+  if (sbAktif()) {
+    if (!SB.token) return Promise.resolve(false);
+    if (document.getElementById("modal")) { adaPembaruanTertunda = true; return Promise.resolve(false); }
+    return sbMuatAdmin().then(function () {
+      srv.galat = ""; renderAdmin(); tandaiSegar();
+      if (!diam) toast("Data disegarkan dari Supabase");
+      return true;
+    }).catch(function (e) {
+      srv.galat = String((e && e.message) || e); tandaiSegar();
+      if (!diam) toast("Gagal menyegarkan: " + srv.galat);
+      return false;
+    });
+  }
   if (!srvAktif() || !adminAktif) return Promise.resolve(false);
   if (srv.sibuk || srv.memuat) return Promise.resolve(false);
   srv.memuat = true;
@@ -2646,6 +2714,48 @@ var FAQ = [
   ["Bagaimana cara pembayarannya?", "Untuk sewa <b>lebih dari 1 bulan, pembayaran wajib cash/tunai di awal</b> saat masuk kost. Setelah itu barulah diskon sesuai lama sewa berlaku. DP {DP} dibayarkan lebih dulu untuk mengunci kamar dan akan dipotong dari total biaya."]
 ];
 
+/* Menggabungkan daftar menjadi kalimat: "A dan B", atau "A, B, dan C". */
+function rangkai(arr) {
+  arr = arr.filter(Boolean);
+  if (!arr.length) return "";
+  if (arr.length === 1) return arr[0];
+  if (arr.length === 2) return arr[0] + " dan " + arr[1];
+  return arr.slice(0, -1).join(", ") + ", dan " + arr[arr.length - 1];
+}
+/* Kalimat pengantar di halaman depan. Semuanya dihitung dari data yang ada
+   di panel admin, jadi begitu kamar atau fasilitas diubah, kalimat ini ikut
+   berubah sendiri tanpa perlu disunting. */
+function kalimatRingkas() {
+  var kamar = S.rooms || [];
+  var blok = daftarBlok().filter(function (b) {
+    return kamar.some(function (r) { return r.blok === b; });
+  });
+  var bagian = [];
+
+  if (kamar.length) {
+    bagian.push(kamar.length + " kamar" +
+      (blok.length ? " dalam " + blok.length + " blok &mdash; " + rangkai(blok.map(esc)) : "") + ".");
+  }
+
+  var sifat = [];
+  var dalam = kamar.filter(function (r) { return r.km === "Dalam"; }).length;
+  if (kamar.length && dalam === kamar.length) sifat.push("Semua kamar mandi dalam");
+  else if (dalam) sifat.push(dalam + " dari " + kamar.length + " kamar ber-kamar mandi dalam");
+  var ac = kamar.filter(function (r) { return r.dingin === "AC"; }).length;
+  if (ac) sifat.push(ac + " kamar ber-AC");
+  if (sifat.length) bagian.push(sifat.join(", ") + ".");
+
+  var fasilitas = (S.fasilitas || []).filter(function (f) { return f.aktif !== false && f.nama; })
+    .map(function (f) { return esc(f.nama); });
+  if (fasilitas.length) {
+    var tampil = fasilitas.slice(0, 6);
+    var sisa = fasilitas.length - tampil.length;
+    if (sisa > 0) tampil.push(sisa + " fasilitas lainnya");
+    bagian.push("Fasilitas bersama: " + rangkai(tampil) + ".");
+  }
+  return bagian.join(" ") || esc(S.settings.alamat || "");
+}
+
 function statusLabel(s) {
   return { kosong: "Tersedia", booking: "Dibooking", terisi: "Terisi", perbaikan: "Perbaikan" }[s] || s;
 }
@@ -2696,7 +2806,7 @@ var termurah = berdua.length
     '<img class="logo-full hero-logo" src="' + LOGO_FULL + '" alt="Logo Kost Muslimah Mahira">' +
     '<span class="eyebrow">Sananwetan, Kota Blitar</span>' +
     '<h1 style="margin-top:12px">Kost muslimah yang terasa seperti <em>rumah sendiri</em>.</h1>' +
-    '<p class="lead">23 kamar dalam 4 blok &mdash; Alifa, Belva, Dania, dan Eliza. Kamar mandi dalam, wifi dan listrik gratis, dapur umum, mesin pengering, mushola, dan parkir motor yang luas.</p>' +
+    '<p class="lead">' + kalimatRingkas() + "</p>" +
     '<div class="hero-cta">' +
     '<a class="btn" href="#kamar">Lihat ' + kosong.length + " kamar tersedia</a>" +
     (st.katalog
@@ -3419,7 +3529,7 @@ function jumpTo(id) {
 /* ============================================================
    5. PANEL ADMIN
    ============================================================ */
-var ui = { cari: "", filterStatus: "aktif", periode: periodNow(), tahun: new Date().getFullYear(), sortKey: "nama", sortDir: 1 };
+var ui = { cari: "", filterStatus: "aktif", sortKey: "nama", sortDir: 1 };
 
 function sortTenants(list) {
   var k = ui.sortKey, d = ui.sortDir;
@@ -3439,68 +3549,16 @@ function th(key, label) {
 }
 
 /* ---- keuangan ---- */
-function payOf(tenantId, periode) {
-  return S.payments.filter(function (p) { return p.tenantId === tenantId && p.periode === periode; })[0] || null;
-}
-function payStatus(p) {
-  if (!p || !p.dibayar) return "belum";
-  return p.dibayar >= p.tagihan ? "lunas" : "dp";
-}
-function payLabel(s) { return { lunas: "Lunas", dp: "Sebagian", belum: "Belum bayar" }[s]; }
-function tenantAktifPada(t, periode) {
-  if (!t.masuk) return t.status === "aktif";
-  var awal = periode + "-01";
-  var akhir = shiftPeriod(periode, 1) + "-01";
-  if (t.masuk >= akhir) return false;
-  if (t.keluar && t.keluar < awal) return false;
-  return true;
-}
-/* Menerbitkan tagihan satu periode untuk penghuni yang masih punya
-   kewajiban. Yang sudah lunas untuk seluruh masa sewanya dilewati. */
-function buatTagihan(periode) {
-  var n = 0, lewat = 0;
-  S.tenants.forEach(function (t) {
-    if (!tenantAktifPada(t, periode)) return;
-    if (payOf(t.id, periode)) return;
-    var k = hitungKewajiban(t);
-    if (k.lunas || k.belumDitagih <= 0) { lewat++; return; }
-    var nilai = Math.min(k.tarif, k.belumDitagih);
-    if (nilai <= 0) { lewat++; return; }
-    S.payments.push({
-      id: uid("P"), tenantId: t.id, roomId: t.roomId, periode: periode,
-      tagihan: nilai, dibayar: 0, tanggal: "", metode: "", catatan: ""
-    });
-    n++;
-  });
-  buatTagihan.lewat = lewat;
-  return n;
-}
-function pemasukanPeriode(periode) {
-  return S.payments.filter(function (p) { return p.periode === periode; })
-    .reduce(function (a, p) { return a + (Number(p.dibayar) || 0); }, 0);
-}
-function tagihanPeriode(periode) {
-  return S.payments.filter(function (p) { return p.periode === periode; })
-    .reduce(function (a, p) { return a + (Number(p.tagihan) || 0); }, 0);
-}
-function totalTunggakan() {
-  var now = periodNow();
-  return S.payments.filter(function (p) { return p.periode <= now; })
-    .reduce(function (a, p) { return a + Math.max(0, (Number(p.tagihan) || 0) - (Number(p.dibayar) || 0)); }, 0);
-}
-/* Sisa kewajiban seluruh penghuni aktif, dipakai di dasbor. */
-function totalSisaKewajiban() {
-  return activeTenants().reduce(function (a, t) { return a + hitungKewajiban(t).sisa; }, 0);
-}
-
 /* ---- shell ---- */
 var TABS = [["dashboard", "Dashboard"], ["kamar", "Kamar"], ["penghuni", "Penghuni"],
-["pembayaran", "Pembayaran"], ["booking", "Booking"], ["laporan", "Laporan"], ["pengaturan", "Pengaturan"]];
+["booking", "Booking"], ["pengaturan", "Pengaturan"]];
 
 function renderAdmin() {
   if (!unlocked) return renderLogin();
   syncRoomStatus();
-  var body = { dashboard: viewDashboard, kamar: viewKamar, penghuni: viewPenghuni, pembayaran: viewPembayaran, booking: viewBooking, laporan: viewLaporan, pengaturan: viewPengaturan }[tab]();
+  var daftarView = { dashboard: viewDashboard, kamar: viewKamar, penghuni: viewPenghuni, booking: viewBooking, pengaturan: viewPengaturan };
+  if (!daftarView[tab]) tab = "dashboard";
+  var body = daftarView[tab]();
   document.getElementById("root").innerHTML =
     '<div class="admin"><div class="adm-bar">' +
     '<div class="adm-bar-in">' +
@@ -3523,21 +3581,32 @@ function renderAdmin() {
 
 function renderLogin() {
   var kodeTersimpan = "";
-  try { kodeTersimpan = localStorage.getItem(LS_ADMIN) || ""; } catch (e) { }
+  var emailTersimpan = "";
+  try {
+    kodeTersimpan = localStorage.getItem(LS_ADMIN) || "";
+    emailTersimpan = localStorage.getItem(LS_ADMIN + "-email") || "";
+  } catch (e) { }
   document.getElementById("root").innerHTML =
     '<div class="login"><form class="login-box" id="loginForm">' +
     '<img class="logo-full" src="' + LOGO_FULL + '" alt="Logo Kost Muslimah Mahira" style="width:150px;margin:0 auto">' +
     "<h2>Panel Admin Kost Mahira</h2>" +
-    '<p class="muted" style="font-size:13.5px;margin-top:-8px">Masukkan kode admin Anda. Kode yang sama berlaku di HP maupun laptop, ' +
-    "dan langsung menampilkan data terbaru dari server.</p>" +
-    '<input class="pinput" type="password" name="kode" placeholder="Kode admin" autocomplete="current-password" ' +
-    'value="' + esc(kodeTersimpan) + '" required>' +
+    '<p class="muted" style="font-size:13.5px;margin-top:-8px">' +
+    (sbAktif()
+      ? "Masuk dengan email dan kata sandi admin yang terdaftar di Supabase. Berlaku di HP maupun laptop."
+      : "Masukkan kode admin Anda. Kode yang sama berlaku di HP maupun laptop, dan langsung menampilkan data terbaru dari server.") +
+    "</p>" +
+    (sbAktif()
+      ? '<input name="email" type="email" placeholder="Email admin" autocomplete="username" required value="' + esc(emailTersimpan) + '">' +
+        '<input class="pinput" type="password" name="kode" placeholder="Kata sandi" autocomplete="current-password" required>'
+      : '<input class="pinput" type="password" name="kode" placeholder="Kode admin" autocomplete="current-password" ' +
+        'value="' + esc(kodeTersimpan) + '" required>') +
     '<label class="sw" style="justify-content:center"><input type="checkbox" id="ingatKode"' + (kodeTersimpan ? " checked" : "") + "> Ingat kode di perangkat ini</label>" +
     '<button class="btn block" type="submit" id="masukBtn">Masuk</button>' +
     '<button class="btn ghost block" type="button" data-act="to-publik">Kembali ke halaman publik</button>' +
     '<p class="muted" style="font-size:12px;text-align:center">' +
-    (srvAktif() ? "Terhubung ke server bersama." : "Server belum dipasang &mdash; data hanya tersimpan di perangkat ini.") +
-    " Kode admin baru dibuat oleh pemilik kost di menu Pengaturan.</p>" +
+    (sbAktif() ? "Terhubung ke Supabase. Akun admin dibuat pemilik lewat menu Authentication di Supabase."
+      : srvAktif() ? "Terhubung ke server bersama. Kode admin baru dibuat oleh pemilik kost di menu Pengaturan."
+      : "Server belum dipasang &mdash; data hanya tersimpan di perangkat ini.") + "</p>" +
     "</form></div>";
   var f = document.getElementById("loginForm");
   f.onsubmit = function (e) {
@@ -3562,6 +3631,36 @@ function renderLogin() {
       toast("Selamat datang, " + (nama || "Admin"));
       touch("quiet");
     };
+
+    if (sbAktif()) {
+      var email = String(f.email.value || "").trim();
+      btn.disabled = true; btn.textContent = "Memeriksa...";
+      sbMasuk(email, kode).then(function (h) {
+        if (!h.ok) {
+          btn.disabled = false; btn.textContent = "Masuk";
+          f.kode.value = ""; f.kode.focus();
+          return toast(h.error);
+        }
+        try {
+          if (ingat) localStorage.setItem(LS_ADMIN + "-email", email);
+          else localStorage.removeItem(LS_ADMIN + "-email");
+        } catch (er) { }
+        adminAktif = { id: "SB", nama: email.split("@")[0], peran: "pemilik", kode: "", aktif: true };
+        sbMuatAdmin().then(function (r) {
+          unlocked = true;
+          renderAdmin();
+          srvPantau();
+          toast(r.kosong
+            ? "Masuk sebagai " + email + ". Supabase masih kosong, tekan Kirim ke server untuk mengisinya."
+            : "Selamat datang, " + adminAktif.nama);
+          if (r.kosong) setTimeout(function () { srvSimpan(true); }, 600);
+        }).catch(function (e) {
+          btn.disabled = false; btn.textContent = "Masuk";
+          toast("Gagal mengambil data: " + ((e && e.message) || e));
+        });
+      });
+      return;
+    }
 
     if (srvAktif()) {
       /* Masuk cepat: bila kode ini sudah pernah dipakai di perangkat ini dan
@@ -3642,17 +3741,8 @@ function viewDashboard() {
   var terisi = S.rooms.filter(function (r) { return r.status === "terisi"; }).length;
   var kosong = S.rooms.filter(function (r) { return r.status === "kosong"; }).length;
   var booking = S.rooms.filter(function (r) { return r.status === "booking"; }).length;
-  var okup = Math.round(terisi / S.rooms.length * 100);
-  var now = periodNow();
-  var masuk = pemasukanPeriode(now), tagih = tagihanPeriode(now);
-  var tunggak = totalTunggakan();
-  var potensi = S.rooms.filter(function (r) { return r.status === "kosong"; })
-    .reduce(function (a, r) { return a + r.tarif; }, 0);
-
-  var months = [];
-  for (var i = 5; i >= 0; i--) months.push(shiftPeriod(now, -i));
-  var vals = months.map(pemasukanPeriode);
-  var maxV = Math.max.apply(null, vals.concat([1]));
+  var perbaikan = S.rooms.filter(function (r) { return r.status === "perbaikan"; }).length;
+  var okup = S.rooms.length ? Math.round(terisi / S.rooms.length * 100) : 0;
 
   var jatuhTempo = S.tenants.filter(function (t) {
     if (t.status !== "aktif" || !t.keluar) return false;
@@ -3660,29 +3750,17 @@ function viewDashboard() {
     return d !== null && d <= 30;
   }).sort(function (a, b) { return a.keluar < b.keluar ? -1 : 1; });
 
-  var belum = S.payments.filter(function (p) { return p.periode <= now && (Number(p.dibayar) || 0) < (Number(p.tagihan) || 0); })
-    .sort(function (a, b) { return a.periode < b.periode ? -1 : 1; });
+  var bookingBaru = (S.bookings || []).filter(function (b) { return b.status === "aktif"; });
 
   return '<div class="stat-grid">' +
     stat("Okupansi", okup + "%", terisi + " dari " + S.rooms.length + " kamar terisi", true) +
-    stat("Kamar kosong", kosong, "potensi " + rpk(potensi) + "/bulan") +
+    stat("Kamar kosong", kosong, kosong ? "siap ditawarkan" : "semua kamar terpakai") +
     stat("Dibooking", booking, booking ? "menunggu konfirmasi" : "tidak ada booking") +
-    stat("Pemasukan " + periodShort(now), rpk(masuk), "dari tagihan " + rpk(tagih)) +
-    stat("Tunggakan", rpk(tunggak), tunggak ? "perlu ditagih" : "semua lunas") +
     stat("Penghuni aktif", activeTenants().length + " orang", "kontrak berjalan") +
+    (perbaikan ? stat("Perbaikan", perbaikan, "sedang tidak disewakan") : "") +
     "</div>" +
 
     '<div class="two">' +
-    '<section class="panel"><div class="panel-head"><h3>Pemasukan 6 bulan terakhir</h3>' +
-    '<span class="sp muted" style="font-size:12.5px">total ' + rp(vals.reduce(function (a, b) { return a + b; }, 0)) + "</span></div>" +
-    '<div class="panel-body"><div class="bars">' + months.map(function (m, i) {
-      var h = Math.round(vals[i] / maxV * 100);
-      return '<div class="b' + (m === now ? " now" : "") + '" title="' + periodLabel(m) + ": " + rp(vals[i]) + '">' +
-        '<i style="height:' + (vals[i] ? Math.max(h, 3) : 0) + '%"></i><span>' + periodShort(m) + "</span></div>";
-    }).join("") + "</div>" +
-    '<p class="muted" style="font-size:12.5px;margin-top:10px">Bar emas menandai bulan berjalan. Nilai diambil dari pembayaran yang sudah dicatat.</p>' +
-    "</div></section>" +
-
     '<section class="panel"><div class="panel-head"><h3>Kontrak jatuh tempo &le; 30 hari</h3></div>' +
     (jatuhTempo.length ? '<div class="scrollx"><table><tbody>' + jatuhTempo.map(function (t) {
       var d = daysTo(t.keluar);
@@ -3691,21 +3769,16 @@ function viewDashboard() {
         (d < 0 ? "lewat " + Math.abs(d) + " hari" : d + " hari lagi") + "</span></td>" +
         '<td style="width:1%"><button class="btn ghost sm" data-wa-tenant="' + t.id + '">Ingatkan</button></td></tr>';
     }).join("") + "</tbody></table></div>" : '<div class="empty">Tidak ada kontrak yang akan berakhir dalam 30 hari.</div>') +
-    "</section></div>" +
+    "</section>" +
 
-    '<section class="panel"><div class="panel-head"><h3>Tagihan belum lunas</h3>' +
-    '<div class="sp"><button class="btn sm" data-act="gen-tagihan">Buat tagihan ' + periodShort(now) + "</button></div></div>" +
-    (belum.length ? '<div class="scrollx"><table><thead><tr><th>Penghuni</th><th>Kamar</th><th>Periode</th><th>Tagihan</th><th>Dibayar</th><th>Kurang</th><th></th></tr></thead><tbody>' +
-      belum.map(function (p) {
-        var t = tenant(p.tenantId) || { nama: "(penghuni dihapus)" };
-        var kurang = (p.tagihan || 0) - (p.dibayar || 0);
-        return "<tr><td><b>" + esc(t.nama) + "</b></td><td>" + esc((room(p.roomId) || {}).nama || "-") + "</td>" +
-          "<td>" + periodLabel(p.periode) + '</td><td class="tnum">' + rp(p.tagihan) + '</td><td class="tnum">' + rp(p.dibayar) + "</td>" +
-          '<td class="tnum" style="color:var(--bad);font-weight:600">' + rp(kurang) + "</td>" +
-          '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-bayar="' + p.id + '">Catat bayar</button> ' +
-          '<button class="btn ghost sm" data-wa-tagih="' + p.id + '">Tagih</button></td></tr>';
-      }).join("") + "</tbody></table></div>" : '<div class="empty">Belum ada tagihan tertunggak. Buat tagihan bulan berjalan lewat tombol di atas.</div>') +
-    "</section>";
+    '<section class="panel"><div class="panel-head"><h3>Booking menunggu konfirmasi</h3>' +
+    '<div class="sp"><span class="chip ' + (bookingBaru.length ? "booking" : "kosong") + '">' + bookingBaru.length + " booking</span></div></div>" +
+    (bookingBaru.length ? '<div class="scrollx"><table><tbody>' + bookingBaru.slice(0, 8).map(function (b) {
+      return "<tr><td><b>" + esc(b.nama) + "</b><br><small class=\"muted\">" + esc(b.hp || "-") + "</small></td>" +
+        "<td>" + esc((room(b.roomId) || {}).nama || "belum dipilih") + '<br><small class="muted">masuk ' + fdate(b.masuk) + "</small></td>" +
+        '<td style="width:1%"><button class="btn ghost sm" data-tab="booking">Lihat</button></td></tr>';
+    }).join("") + "</tbody></table></div>" : '<div class="empty">Belum ada booking yang menunggu.</div>') +
+    "</section></div>";
 }
 function stat(k, v, s, accent) {
   return '<div class="stat' + (accent ? " accent" : "") + '"><div class="k">' + k + '</div><div class="v tnum">' + v + '</div><div class="s">' + s + "</div></div>";
@@ -3792,7 +3865,7 @@ function viewPenghuni() {
     (list.length ? '<div class="scrollx"><table><thead><tr>' +
       th("nama", "Nama") + th("kamar", "Kamar") + "<th>Aktivitas</th>" + th("masuk", "Masuk") +
       "<th>Kontrak</th>" + th("keluar", "Berakhir") + th("tarif", "Tarif/bln") +
-      "<th>Pembayaran</th><th>KTP</th><th></th>" +
+      "<th>KTP</th><th></th>" +
       "</tr></thead><tbody>" + list.map(function (t) {
         var d = daysTo(t.keluar);
         return '<tr><td><b>' + esc(t.nama) + '</b><br><small class="muted">' + esc(t.hp || "-") + "</small></td>" +
@@ -3804,9 +3877,7 @@ function viewPenghuni() {
           (Number(t.jumlahPenghuni) > 1 ? '<br><small class="muted">patungan ' + t.jumlahPenghuni + " orang</small>" : "") +
           (Number(t.dp) ? '<br><small class="muted">DP ' + rp(t.dp) + " dipotong</small>" : "") +
           ((t.dpBukti || []).length ? "<br>" + buktiMini(t.dpBukti, "bukti-tenant", t.id, "Bukti DP " + t.nama) : "") +
-          (Number(t.potongan) ? '<br><small style="color:var(--gold);font-weight:600">' + esc(labelKhusus(t)) + "</small>" : "") +
           (t.kasur ? '<br><small class="muted">+ kasur</small>' : "") + "</td>" +
-          "<td>" + ringkasKewajiban(t) + "</td>" +
           "<td>" + (t.ktpFoto
             ? '<button class="ktp-mini" data-ktp="' + t.id + '" title="Lihat KTP"><img src="' + t.ktpFoto + '" alt="KTP ' + esc(t.nama) + '"></button>'
             : '<span class="chip ' + (t.ktp === "sudah" ? "lunas" : "belum") + '">' + (t.ktp === "sudah" ? "Ada" : "Belum") + "</span>") + "</td>" +
@@ -3814,70 +3885,6 @@ function viewPenghuni() {
           '<button class="btn ghost sm" data-wa-tenant="' + t.id + '">WA</button></td></tr>';
       }).join("") + "</tbody></table></div>"
       : '<div class="empty">Belum ada data penghuni. Klik <b>Tambah penghuni</b> untuk mulai mengisi buku daftar penghuni.</div>') +
-    "</div>";
-}
-
-/* Ringkasan pembayaran satu penghuni untuk ditampilkan di tabel. */
-function ringkasKewajiban(t) {
-  var k = hitungKewajiban(t);
-  if (!k.total) return '<span class="muted">-</span>';
-  var persen = Math.min(100, Math.round(k.dibayar / k.total * 100));
-  var warna = k.lunas ? "lunas" : k.tunggakan ? "belum" : "dp";
-  var label = k.lunas ? "Lunas " + k.bulan + " bulan"
-    : k.bulanLunas ? k.bulanLunas + " dari " + k.bulan + " bulan"
-    : "Baru berjalan";
-  return '<span class="chip ' + warna + '">' + label + "</span>" +
-    '<div class="bar-bayar"><i style="width:' + persen + '%"></i></div>' +
-    '<small class="muted">' + rp(k.dibayar) + " dari " + rp(k.total) + "</small>" +
-    (k.sisa ? '<br><small class="muted">sisa ' + rp(k.sisa) + "</small>" : "") +
-    (k.tunggakan ? '<br><small style="color:var(--bad);font-weight:600">tunggakan ' + rp(k.tunggakan) + "</small>" : "");
-}
-
-/* ---- pembayaran ---- */
-function viewPembayaran() {
-  var p = ui.periode;
-  var rows = S.payments.filter(function (x) { return x.periode === p; })
-    .sort(function (a, b) {
-      var ra = (room(a.roomId) || {}).nama || "", rb = (room(b.roomId) || {}).nama || "";
-      return ra < rb ? -1 : 1;
-    });
-  var masuk = pemasukanPeriode(p), tagih = tagihanPeriode(p);
-  return '<div class="stat-grid">' +
-    stat("Periode", periodLabel(p), rows.length + " tagihan", true) +
-    stat("Total tagihan", rpk(tagih), "seluruh penghuni aktif") +
-    stat("Sudah masuk", rpk(masuk), tagih ? Math.round(masuk / tagih * 100) + "% tertagih" : "-") +
-    stat("Kurang", rpk(Math.max(0, tagih - masuk)), "belum dibayar bulan ini") +
-    stat("Sisa kewajiban", rpk(totalSisaKewajiban()), "seluruh kontrak berjalan") +
-    "</div>" +
-    '<div class="panel"><div class="panel-head"><h3>Pembayaran ' + periodLabel(p) + "</h3>" +
-    '<div class="sp">' +
-    '<button class="btn ghost sm" data-per="-1">&larr; Bulan sebelumnya</button>' +
-    '<button class="btn ghost sm" data-per="1">Bulan berikutnya &rarr;</button>' +
-    '<button class="btn sm" data-act="gen-tagihan">Buat tagihan bulan ini</button></div></div>' +
-    '<div class="note" style="margin:0 17px 14px">Tagihan hanya diterbitkan untuk penghuni yang kewajibannya belum habis. ' +
-    "Penghuni yang sudah membayar lunas seluruh masa sewanya otomatis dilewati.</div>" +
-    (rows.length ? '<div class="scrollx"><table><thead><tr><th>Kamar</th><th>Penghuni</th><th>Tagihan</th><th>Dibayar</th><th>Status</th><th>Sisa kewajiban</th><th>Tanggal</th><th>Metode</th><th>Bukti</th><th></th></tr></thead><tbody>' +
-      rows.map(function (x) {
-        var t = tenant(x.tenantId) || { nama: "(dihapus)" };
-        var s = payStatus(x);
-        var org = Number(t.jumlahPenghuni) || 1;
-        var k = hitungKewajiban(t);
-        return "<tr><td><b>" + esc((room(x.roomId) || {}).nama || "-") + "</b></td><td>" + esc(t.nama) +
-          (org > 1 ? '<br><small class="muted">patungan ' + org + " orang, ini bagiannya</small>" : "") +
-          (t.khusus ? '<br><small style="color:var(--gold);font-weight:600">' + esc(labelKhusus(t)) + "</small>" : "") + "</td>" +
-          '<td class="tnum">' + rp(x.tagihan) + '</td><td class="tnum">' + rp(x.dibayar) + "</td>" +
-          '<td><span class="chip ' + s + '">' + payLabel(s) + "</span></td>" +
-          '<td class="tnum">' + (k.lunas
-            ? '<span class="chip lunas">Lunas kontrak</span>'
-            : rp(k.sisa) + (k.tunggakan ? '<br><small style="color:var(--bad);font-weight:600">tunggakan ' + rp(k.tunggakan) + "</small>" : "")) + "</td>" +
-          "<td>" + (x.tanggal ? fdate(x.tanggal) : "-") + "</td><td>" + esc(x.metode || "-") + "</td>" +
-          "<td>" + ((x.bukti || []).length
-            ? buktiMini(x.bukti, "bukti-pay", x.id, "Bukti pembayaran " + t.nama)
-            : '<span class="chip belum">Belum ada</span>') + "</td>" +
-          '<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-bayar="' + x.id + '">Catat</button> ' +
-          '<button class="btn ghost sm" data-wa-tagih="' + x.id + '">Tagih</button></td></tr>';
-      }).join("") + "</tbody></table></div>"
-      : '<div class="empty">Belum ada tagihan untuk ' + periodLabel(p) + '. Klik <b>Buat tagihan bulan ini</b> untuk membuatnya dari daftar penghuni aktif.</div>') +
     "</div>";
 }
 
@@ -3912,57 +3919,6 @@ function viewBooking() {
 }
 
 /* ---- laporan ---- */
-function viewLaporan() {
-  var th = ui.tahun;
-  var months = [];
-  for (var m = 1; m <= 12; m++) months.push(th + "-" + String(m).padStart(2, "0"));
-  var vals = months.map(pemasukanPeriode);
-  var tagi = months.map(tagihanPeriode);
-  var total = vals.reduce(function (a, b) { return a + b; }, 0);
-  var maxV = Math.max.apply(null, vals.concat([1]));
-  var perBlok = daftarBlok().map(function (b) {
-    var ids = S.rooms.filter(function (r) { return r.blok === b; }).map(function (r) { return r.id; });
-    var v = S.payments.filter(function (p) { return p.periode.slice(0, 4) === String(th) && ids.indexOf(p.roomId) >= 0; })
-      .reduce(function (a, p) { return a + (Number(p.dibayar) || 0); }, 0);
-    return [b, v];
-  });
-  var maxB = Math.max.apply(null, perBlok.map(function (x) { return x[1]; }).concat([1]));
-
-  return '<div class="panel"><div class="panel-head"><h3>Rekap pendapatan ' + th + "</h3>" +
-    '<div class="sp"><button class="btn ghost sm" data-thn="-1">&larr; ' + (th - 1) + "</button>" +
-    '<button class="btn ghost sm" data-thn="1">' + (th + 1) + " &rarr;</button>" +
-    '<button class="btn ghost sm" data-act="export-csv">Unduh CSV</button>' +
-    '<button class="btn ghost sm" data-act="backup">Backup data</button>' +
-    '<button class="btn ghost sm" data-act="restore">Pulihkan</button></div></div>' +
-    '<div class="panel-body">' +
-    '<div class="bars" style="height:150px">' + months.map(function (m, i) {
-      var h = Math.round(vals[i] / maxV * 100);
-      return '<div class="b' + (m === periodNow() ? " now" : "") + '" title="' + periodLabel(m) + ": " + rp(vals[i]) + '">' +
-        '<i style="height:' + (vals[i] ? Math.max(h, 3) : 0) + '%"></i><span>' + BULAN_S[i] + "</span></div>";
-    }).join("") + "</div>" +
-    '<p style="margin-top:14px;font-size:14px">Total pemasukan ' + th + ": <b class=\"tnum\">" + rp(total) + "</b> dari tagihan <b class=\"tnum\">" + rp(tagi.reduce(function (a, b) { return a + b; }, 0)) + "</b></p>" +
-    "</div></div>" +
-
-    '<div class="two"><div class="panel"><div class="panel-head"><h3>Rincian bulanan</h3></div>' +
-    '<div class="scrollx"><table><thead><tr><th>Bulan</th><th>Tagihan</th><th>Diterima</th><th>Selisih</th></tr></thead><tbody>' +
-    months.map(function (m, i) {
-      if (!tagi[i] && !vals[i]) return "";
-      return "<tr><td>" + BULAN[i] + '</td><td class="tnum">' + rp(tagi[i]) + '</td><td class="tnum">' + rp(vals[i]) + "</td>" +
-        '<td class="tnum" style="color:' + (tagi[i] - vals[i] > 0 ? "var(--bad)" : "var(--ok)") + '">' + rp(tagi[i] - vals[i]) + "</td></tr>";
-    }).join("") + "</tbody></table></div>" +
-    (total ? "" : '<div class="empty">Belum ada pembayaran tercatat di tahun ' + th + ".</div>") + "</div>" +
-
-    '<div class="panel"><div class="panel-head"><h3>Pendapatan per blok</h3></div><div class="panel-body">' +
-    perBlok.map(function (x) {
-      return '<div style="margin-bottom:13px"><div style="display:flex;justify-content:space-between;font-size:13.5px;font-weight:600">' +
-        "<span>Blok " + x[0] + '</span><span class="tnum">' + rp(x[1]) + "</span></div>" +
-        '<div style="height:8px;background:var(--surface-2);border-radius:5px;margin-top:6px;overflow:hidden">' +
-        '<div style="height:100%;width:' + Math.round(x[1] / maxB * 100) + '%;background:var(--brand);border-radius:5px"></div></div></div>';
-    }).join("") + "</div></div></div>";
-}
-
-/* ---- pengaturan ---- */
-/* Penyunting daftar sederhana untuk ketentuan sewa dan peraturan kost */
 function listEditor(nama, arr) {
   if (!arr.length) return '<div class="empty">Belum ada isi. Klik <b>Tambah baris</b>.</div>';
   return '<div class="le" data-le-box="' + nama + '">' + arr.map(function (t, i) {
@@ -4173,7 +4129,29 @@ function viewPengaturan() {
         '<td class="tnum">' + rp(r.tarif) + "</td>" +
         contohBulanDiskon().map(function (t) { return '<td class="tnum muted">' + rp(tarifDiskon(r.tarif, t.bulan)) + "</td>"; }).join("") +
         '<td style="text-align:right"><button class="btn ghost sm" data-kamar="' + r.id + '">Ubah</button></td></tr>';
-    }).join("") + "</tbody></table></div></div></div>";
+    }).join("") + "</tbody></table></div></div></div>" +
+
+    '<div class="panel"><div class="panel-head"><h3>Data &amp; cadangan</h3>' +
+    '<div class="sp"><span class="chip">' + S.rooms.length + " kamar</span>" +
+    '<span class="chip">' + activeTenants().length + " penghuni aktif</span>" +
+    '<span class="chip">' + (S.bookings || []).filter(function (b) { return b.status === "aktif"; }).length + " booking</span></div></div>" +
+    '<div class="panel-body">' +
+    '<p style="font-size:13.5px;color:var(--ink-2);max-width:78ch">Simpan cadangan secara berkala, terutama sebelum mengosongkan data. ' +
+    "Berkas cadangan berisi seluruh isi aplikasi dan bisa dipulihkan kapan saja.</p>" +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
+    '<button class="btn sm" data-act="backup">Unduh cadangan (JSON)</button>' +
+    '<button class="btn ghost sm" data-act="ekspor-csv">Unduh daftar penghuni (CSV)</button>' +
+    '<button class="btn ghost sm" data-act="restore">Pulihkan dari cadangan</button>' +
+    "</div>" +
+    '<div class="bahaya">' +
+    '<b>Mengosongkan data</b>' +
+    '<p>Tindakan di bawah menghapus data secara permanen dari aplikasi dan dari server bersama. ' +
+    "Pastikan sudah mengunduh cadangan lebih dulu.</p>" +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
+    '<button class="btn danger sm" data-act="reset-penghuni">Reset data penghuni</button>' +
+    '<button class="btn danger sm" data-act="reset-booking">Reset data booking</button>' +
+    "</div></div>" +
+    "</div></div>";
 }
 
 /* ============================================================
@@ -4489,18 +4467,6 @@ function formPenghuni(t, onSaved, abaikanId) {
     '<label class="field">Status berkas KTP<select name="ktp"><option value="belum"' + (t.ktp !== "sudah" ? " selected" : "") + ">Belum ada</option><option value=\"sudah\"" + (t.ktp === "sudah" ? " selected" : "") + ">Sudah diterima</option></select></label>" +
     '<label class="field">Status<select name="status"><option value="aktif"' + (t.status === "aktif" ? " selected" : "") + ">Aktif</option><option value=\"keluar\"" + (t.status === "keluar" ? " selected" : "") + ">Sudah keluar</option></select></label>" +
     "</div>" +
-    '<div class="khusus-box">' +
-    '<label class="sw"><input type="checkbox" name="khusus" id="khususCek"' + (t.khusus ? " checked" : "") + "> " +
-    "<b>Kondisi khusus</b> &mdash; beri potongan tambahan untuk penghuni ini</label>" +
-    '<div class="khusus-isi" id="khususIsi"' + (t.khusus ? "" : " hidden") + ">" +
-    '<div class="grid-form">' +
-    '<label class="field">Bentuk potongan<select name="khususJenis">' +
-    '<option value="persen"' + (t.khususJenis !== "nominal" ? " selected" : "") + ">Persen dari angsuran</option>" +
-    '<option value="nominal"' + (t.khususJenis === "nominal" ? " selected" : "") + ">Nominal rupiah per bulan</option>" +
-    "</select></label>" +
-    '<label class="field">Besar potongan<input type="number" min="0" name="khususNilai" value="' + (Number(t.khususNilai) || "") + '" placeholder="mis. 10 atau 50000"></label>' +
-    '<label class="field" style="grid-column:1/-1">Alasan / catatan potongan<input name="khususCatatan" value="' + esc(t.khususCatatan || "") + '" placeholder="mis. penghuni lama, kerabat pemilik, keringanan"></label>' +
-    "</div></div></div>" +
     '<div class="note" id="hintTarif"></div>' +
     '<div><b style="font-size:12.5px;color:var(--ink-2)">Foto / scan KTP</b>' +
     '<div id="ktpBox" style="margin-top:8px"></div></div>' +
@@ -4565,11 +4531,7 @@ function formPenghuni(t, onSaved, abaikanId) {
           bulanKontrak: Number(f.bulanKontrak.value), kasur: !!f.kasur.value, dp: Number(f.dp.value) || 0
         };
         var h = hitungKamarTagihan(f.roomId.value, draft);
-        var pot = potonganKhusus({
-          khusus: cekKhusus.checked, khususJenis: f.khususJenis.value,
-          khususNilai: Number(f.khususNilai.value) || 0
-        }, h.perBulanOrang);
-        var angsuran = Math.max(0, h.perBulanOrang - pot);
+        var angsuran = h.perBulanOrang;
         d.querySelector("#hintTarif").innerHTML =
           "Tarif kamar " + rp(r.tarif) + " &minus; diskon " + diskonTier(h.bulan) + "% &rarr; <b>" + rp(h.perKamarNormal) + "</b>/bulan" +
           (h.n > 1 ? " (sudah termasuk penghuni ke-2)" : "") +
@@ -4578,18 +4540,12 @@ function formPenghuni(t, onSaved, abaikanId) {
           (h.dp ? " &minus; DP " + rp(h.dp) + " = <b>" + rp(h.sisa) + "</b>" : "") +
           " &rarr; <b>" + rp(h.perBulanKamar) + "</b>/bulan per kamar" +
           (h.n > 1 ? ' &middot; <b style="color:var(--brand)">dibagi ' + h.n + " orang = " + rp(h.perBulanOrang) + "/orang</b>" : "") +
-          (pot ? '<br><b style="color:var(--gold)">Kondisi khusus &minus; ' + rp(pot) + "/bulan &rarr; angsuran jadi " + rp(angsuran) + "/bulan</b>" : "") +
-          "<br>Total kewajiban " + h.bulan + " bulan untuk penghuni ini: <b>" + rp(angsuran * h.bulan) + "</b>";
+          "<br>Total " + h.bulan + " bulan untuk penghuni ini: <b>" + rp(angsuran * h.bulan) + "</b>";
         if (auto || !f.tarif.value) f.tarif.value = angsuran;
       }
       var bln = Number(f.bulanKontrak.value);
       if (f.masuk.value && bln && (auto || !f.keluar.value)) f.keluar.value = addMonths(f.masuk.value, bln);
     }
-    var cekKhusus = d.querySelector("#khususCek");
-    var isiKhusus = d.querySelector("#khususIsi");
-    cekKhusus.onchange = function () { isiKhusus.hidden = !cekKhusus.checked; hitung(true); };
-    f.khususJenis.onchange = function () { hitung(true); };
-    f.khususNilai.oninput = function () { hitung(true); };
     ["roomId", "bulanKontrak", "kasur"].forEach(function (n) { f[n].onchange = function () { hitung(true); }; });
     f.dp.oninput = function () { hitung(true); };
     f.masuk.onchange = function () { f.keluar.value = addMonths(f.masuk.value, Number(f.bulanKontrak.value)); };
@@ -4604,11 +4560,7 @@ function formPenghuni(t, onSaved, abaikanId) {
         bulanKontrak: Number(f.bulanKontrak.value), keluar: f.keluar.value,
         tarif: Number(f.tarif.value) || 0, ktp: ktpFoto ? "sudah" : f.ktp.value, status: f.status.value,
         ktpFoto: ktpFoto, kasur: !!f.kasur.value, catatan: f.catatan.value.trim(),
-        dpBukti: dpBukti,
-        khusus: !!cekKhusus.checked,
-        khususJenis: f.khususJenis.value,
-        khususNilai: cekKhusus.checked ? (Number(f.khususNilai.value) || 0) : 0,
-        khususCatatan: cekKhusus.checked ? f.khususCatatan.value.trim() : ""
+        dpBukti: dpBukti
       };
       var r = room(data.roomId);
       var lain = activeTenants(data.roomId).filter(function (x) { return x.id !== f.id.value; }).length;
@@ -4636,8 +4588,7 @@ function formPenghuni(t, onSaved, abaikanId) {
       syncRoomStatus();
       var kamarLama = t.roomId && t.roomId !== data.roomId ? t.roomId : null;
       recalcKamar(data.roomId);
-      segarkanTagihan(data.roomId);
-      if (kamarLama) { recalcKamar(kamarLama); segarkanTagihan(kamarLama); }
+      if (kamarLama) recalcKamar(kamarLama);
       touch();
       closeModal();
       renderAdmin();
@@ -4651,7 +4602,7 @@ function formPenghuni(t, onSaved, abaikanId) {
       S.tenants = S.tenants.filter(function (x) { return x.id !== id; });
       S.payments = S.payments.filter(function (x) { return x.tenantId !== id; });
       syncRoomStatus();
-      if (kmr) { recalcKamar(kmr); segarkanTagihan(kmr); }
+      if (kmr) recalcKamar(kmr);
       touch(); closeModal(); renderAdmin(); toast("Data penghuni dihapus");
     };
   });
@@ -4780,124 +4731,6 @@ function modalKamar(id) {
         touch(); closeModal(); renderAdmin(); toast("Kamar " + r.nama + " dihapus");
       };
       bindFotoKamar(d, r);
-    });
-}
-
-/* ---------- modal bayar ---------- */
-function modalBayar(pid) {
-  var p = S.payments.filter(function (x) { return x.id === pid; })[0];
-  if (!p) return;
-  var t = tenant(p.tenantId) || { id: "", nama: "-" };
-  var k = hitungKewajiban(t);
-  var kurangBulanIni = Math.max(0, (p.tagihan || 0) - (p.dibayar || 0));
-  var rows = tagihanTenant(t.id);
-
-  function baris(judul, nilai, tebal) {
-    return '<div class="kw-row"><span>' + judul + "</span>" +
-      (tebal ? '<b class="tnum">' : '<span class="tnum">') + nilai + (tebal ? "</b>" : "</span>") + "</div>";
-  }
-
-  var body =
-    '<div class="note"><b>' + esc(t.nama) + "</b> &middot; " + esc((room(p.roomId) || {}).nama || "-") +
-    " &middot; tagihan " + periodLabel(p.periode) + "</div>" +
-
-    '<div class="kw-box">' +
-    baris("Angsuran per bulan", rp(k.tarif)) +
-    baris("Kewajiban " + k.bulan + " bulan", rp(k.total)) +
-    baris("Sudah dibayar", rp(k.dibayar)) +
-    baris("Sisa kewajiban", rp(k.sisa), true) +
-    (k.tunggakan ? '<div class="kw-row bad"><span>Tunggakan sampai bulan ini</span><b class="tnum">' + rp(k.tunggakan) + "</b></div>" : "") +
-    (k.lunas ? '<div class="kw-row ok"><span>Status</span><b>Lunas seluruh kontrak</b></div>' : "") +
-    "</div>" +
-
-    '<form id="payForm" style="display:flex;flex-direction:column;gap:14px">' +
-    '<div class="grid-form">' +
-    '<label class="field">Jumlah setoran yang diterima<input type="number" min="0" name="setoran" placeholder="0" autocomplete="off"></label>' +
-    '<label class="field">Tanggal terima<input type="date" name="tanggal" value="' + (p.tanggal || todayISO()) + '"></label>' +
-    '<label class="field">Metode<select name="metode">' +
-    ["Transfer", "Tunai", "QRIS", "Lainnya"].map(function (m) {
-      return '<option' + (p.metode === m ? " selected" : "") + ">" + m + "</option>";
-    }).join("") + "</select></label>" +
-    '<label class="field">Catatan<input name="catatan" placeholder="opsional"></label>' +
-    "</div>" +
-    '<div class="kw-cepat">' +
-    (kurangBulanIni ? '<button class="btn ghost sm" type="button" data-isi="' + kurangBulanIni + '">Bulan ini ' + rp(kurangBulanIni) + "</button>" : "") +
-    (k.tunggakan && k.tunggakan !== kurangBulanIni ? '<button class="btn ghost sm" type="button" data-isi="' + k.tunggakan + '">Semua tunggakan ' + rp(k.tunggakan) + "</button>" : "") +
-    (k.sisa && k.sisa !== kurangBulanIni ? '<button class="btn ghost sm" type="button" data-isi="' + k.sisa + '">Lunasi kontrak ' + rp(k.sisa) + "</button>" : "") +
-    (k.tarif && k.sisa > k.tarif * 3 ? '<button class="btn ghost sm" type="button" data-isi="' + (k.tarif * 3) + '">3 bulan ' + rp(k.tarif * 3) + "</button>" : "") +
-    "</div>" +
-    '<p class="muted" style="font-size:12px;margin-top:-4px">Setoran otomatis dibagi ke bulan-bulan yang belum lunas, mulai dari yang paling awal. ' +
-    "Boleh dibayar per bulan, beberapa bulan sekaligus, atau sebagian.</p>" +
-    "</form>" +
-
-    '<div><b style="font-size:12.5px;color:var(--ink-2)">Bukti pembayaran ' + periodLabel(p.periode) + "</b>" +
-    '<div id="buktiBayar" style="margin-top:8px"></div></div>' +
-
-    '<div><b style="font-size:12.5px;color:var(--ink-2)">Rincian per bulan</b>' +
-    '<div class="scrollx" style="margin-top:8px"><table><thead><tr><th>Bulan</th><th>Tagihan</th><th>Dibayar</th><th>Status</th></tr></thead><tbody>' +
-    rows.map(function (x) {
-      var st = payStatus(x);
-      return "<tr" + (x.id === p.id ? ' style="background:var(--brand-soft)"' : "") + "><td>" + periodLabel(x.periode) + "</td>" +
-        '<td class="tnum">' + rp(x.tagihan) + '</td><td class="tnum">' + rp(x.dibayar) + "</td>" +
-        '<td><span class="chip ' + st + '">' + payLabel(st) + "</span></td></tr>";
-    }).join("") + "</tbody></table></div></div>" +
-
-    '<details class="kw-manual"><summary>Perbaiki angka bulan ini secara manual</summary>' +
-    '<form id="fixForm" class="grid-form" style="margin-top:10px">' +
-    '<label class="field">Tagihan ' + periodLabel(p.periode) + '<input type="number" name="tagihan" value="' + (p.tagihan || 0) + '"></label>' +
-    '<label class="field">Dibayar ' + periodLabel(p.periode) + '<input type="number" name="dibayar" value="' + (p.dibayar || 0) + '"></label>' +
-    '<div style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap">' +
-    '<button class="btn ghost sm" type="submit">Simpan perbaikan</button>' +
-    '<button class="btn danger sm" type="button" data-hapus-pay="' + p.id + '">Hapus tagihan bulan ini</button></div>' +
-    "</form>" +
-    '<p class="muted" style="font-size:12px;margin-top:8px">Dipakai bila ada salah catat. Untuk pembayaran biasa, gunakan kolom setoran di atas.</p>' +
-    "</details>";
-
-  openModal("Catat pembayaran", body,
-    '<button class="btn ghost" data-close>Tutup</button>' +
-    '<button class="btn" form="payForm" type="submit">Catat setoran</button>',
-    function (d) {
-      var f = d.querySelector("#payForm");
-      pasangBukti(d.querySelector("#buktiBayar"),
-        function () { p.bukti = p.bukti || []; return p.bukti; },
-        function () { touch(); },
-        "Bukti " + t.nama + " " + periodLabel(p.periode));
-
-      d.querySelectorAll("[data-isi]").forEach(function (b) {
-        b.onclick = function () { f.setoran.value = b.dataset.isi; f.setoran.focus(); };
-      });
-
-      f.onsubmit = function (e) {
-        e.preventDefault();
-        var jumlah = Number(f.setoran.value) || 0;
-        if (jumlah <= 0) return toast("Isi jumlah setoran yang diterima terlebih dahulu");
-        var kena = alokasiSetoran(t.id, jumlah, {
-          tanggal: f.tanggal.value, metode: f.metode.value, catatan: f.catatan.value.trim()
-        });
-        rapikanTagihan(t.id);
-        var sesudah = hitungKewajiban(t);
-        touch(); closeModal(); renderAdmin();
-        toast(rp(jumlah) + " dicatat untuk " + (kena.length > 1 ? kena.length + " bulan" : "1 bulan") +
-          (sesudah.lunas ? ". Kontrak sudah lunas, tagihan berikutnya tidak diterbitkan lagi."
-            : ". Sisa kewajiban " + rp(sesudah.sisa) + "."));
-      };
-
-      var fix = d.querySelector("#fixForm");
-      fix.onsubmit = function (e) {
-        e.preventDefault();
-        p.tagihan = Number(fix.tagihan.value) || 0;
-        p.dibayar = Number(fix.dibayar.value) || 0;
-        p.tanggal = f.tanggal.value;
-        p.metode = f.metode.value;
-        rapikanTagihan(t.id);
-        touch(); closeModal(); renderAdmin(); toast("Angka bulan ini diperbaiki");
-      };
-      d.querySelector("[data-hapus-pay]").onclick = function () {
-        if (!confirm("Hapus tagihan " + periodLabel(p.periode) + " untuk " + t.nama + "?")) return;
-        S.payments = S.payments.filter(function (x) { return x.id !== p.id; });
-        rapikanTagihan(t.id);
-        touch(); closeModal(); renderAdmin(); toast("Tagihan dihapus");
-      };
     });
 }
 
@@ -5229,13 +5062,65 @@ function formFasilitas(f) {
   });
 }
 
+/* ---------- mengosongkan data ----------
+   Dibuat berlapis dengan sengaja: pengguna harus mengetik kata kunci,
+   dan ditawari mengunduh cadangan lebih dulu, karena data penghuni
+   tidak bisa dikembalikan setelah tersimpan ke server. */
+function modalReset(jenis) {
+  var isPenghuni = jenis === "penghuni";
+  var jml = isPenghuni ? S.tenants.length : (S.bookings || []).length;
+  var judul = isPenghuni ? "Reset data penghuni" : "Reset data booking";
+  var rincian = isPenghuni
+    ? "<li>" + S.tenants.length + " data penghuni (termasuk foto KTP dan bukti DP yang tersimpan)</li>" +
+      "<li>Seluruh riwayat pembayaran yang pernah tercatat</li>" +
+      "<li>Status kamar yang sedang <b>terisi</b> dikembalikan menjadi <b>kosong</b></li>"
+    : "<li>" + (S.bookings || []).length + " data booking beserta bukti DP-nya</li>" +
+      "<li>Status kamar yang sedang <b>dibooking</b> dikembalikan menjadi <b>kosong</b></li>";
+
+  openModal(judul,
+    '<div class="note tegas">Tindakan ini tidak dapat dibatalkan. Data juga terhapus di server bersama, sehingga hilang dari semua perangkat.</div>' +
+    "<p style=\"font-size:13.5px\">Yang akan dihapus:</p>" +
+    '<ul style="font-size:13.5px;color:var(--ink-2);padding-left:20px;list-style:disc;display:flex;flex-direction:column;gap:5px">' +
+    rincian + "</ul>" +
+    '<p style="font-size:13.5px">Data kamar, tarif, fasilitas, ulasan, partner, dan pengaturan <b>tidak</b> ikut terhapus.</p>' +
+    '<button class="btn ghost sm" id="resetCadangan" type="button">Unduh cadangan dulu</button>' +
+    '<label class="field" style="margin-top:6px"><span>Ketik <b>HAPUS</b> untuk mengonfirmasi</span>' +
+    '<input id="resetKunci" autocomplete="off" placeholder="HAPUS"></label>',
+    '<button class="btn ghost" data-close>Batal</button>' +
+    '<button class="btn danger" id="resetJalan">Hapus ' + jml + " data</button>",
+    function (d) {
+      d.querySelector("#resetCadangan").onclick = function () {
+        simpanBerkas("cadangan-sebelum-reset-" + todayISO() + ".json", JSON.stringify(S, null, 2), "application/json");
+      };
+      d.querySelector("#resetJalan").onclick = function () {
+        if (String(d.querySelector("#resetKunci").value || "").trim().toUpperCase() !== "HAPUS") {
+          return toast("Ketik HAPUS pada kolom konfirmasi terlebih dahulu");
+        }
+        if (isPenghuni) {
+          S.tenants = [];
+          S.payments = [];
+          S.rooms.forEach(function (r) { if (r.status === "terisi") r.status = "kosong"; });
+        } else {
+          S.bookings = [];
+          S.rooms.forEach(function (r) { if (r.status === "booking") r.status = "kosong"; });
+        }
+        syncRoomStatus();
+        touch();
+        closeModal();
+        renderAdmin();
+        toast(jml + " data " + (isPenghuni ? "penghuni" : "booking") + " dihapus. Status kamar sudah disesuaikan.");
+      };
+    });
+}
+
 /* ---------- ekspor & backup ---------- */
 function csvData() {
-  var head = ["Periode", "Kamar", "Penghuni", "Tagihan", "Dibayar", "Status", "Tanggal", "Metode", "Catatan"];
-  var rows = S.payments.slice().sort(function (a, b) { return a.periode < b.periode ? -1 : 1; }).map(function (p) {
-    var t = tenant(p.tenantId) || { nama: "" };
-    return [p.periode, (room(p.roomId) || {}).nama || "", t.nama, p.tagihan, p.dibayar,
-      payLabel(payStatus(p)), p.tanggal, p.metode, p.catatan];
+  var head = ["Nama", "No HP", "Kamar", "Pekerjaan", "Institusi", "Masuk", "Lama kontrak",
+    "Berakhir", "Tarif per bulan", "DP", "Tambah kasur", "KTP", "Status", "Catatan"];
+  var rows = sortTenants(S.tenants).map(function (t) {
+    return [t.nama, t.hp, (room(t.roomId) || {}).nama || "", t.pekerjaan, t.institusi,
+      t.masuk, (t.bulanKontrak || "") + " bulan", t.keluar, t.tarif, t.dp,
+      t.kasur ? "ya" : "tidak", t.ktp === "sudah" ? "ada" : "belum", t.status, t.catatan];
   });
   return [head].concat(rows).map(function (r) {
     return r.map(function (c) { return '"' + String(c == null ? "" : c).replace(/"/g, '""') + '"'; }).join(",");
@@ -5330,9 +5215,6 @@ function bindAdmin() {
       if (t && t.ktpFoto) openLightbox([{ s: t.ktpFoto, l: "KTP " + t.nama }], 0);
     };
   });
-  root.querySelectorAll("[data-bayar]").forEach(function (b) {
-    b.onclick = function () { modalBayar(b.dataset.bayar); };
-  });
   root.querySelectorAll("[data-wa-tenant]").forEach(function (b) {
     b.onclick = function () {
       var t = tenant(b.dataset.waTenant);
@@ -5341,23 +5223,6 @@ function bindAdmin() {
         kost: S.settings.nama, nama: t.nama,
         kamar: (room(t.roomId) || {}).nama || "-",
         tanggal: t.keluar ? fdate(t.keluar) : "(belum ditentukan)"
-      });
-      window.open("https://wa.me/" + normHp(t.hp) + "?text=" + encodeURIComponent(pesan), "_blank", "noopener");
-    };
-  });
-  root.querySelectorAll("[data-wa-tagih]").forEach(function (b) {
-    b.onclick = function () {
-      var p = S.payments.filter(function (x) { return x.id === b.dataset.waTagih; })[0];
-      var t = p && tenant(p.tenantId);
-      if (!t) return toast("Data penghuni tidak ditemukan");
-      var kurang = (p.tagihan || 0) - (p.dibayar || 0);
-      var kw = hitungKewajiban(t);
-      var pesan = waTeks("tagih", {
-        kost: S.settings.nama, nama: t.nama,
-        kamar: (room(p.roomId) || {}).nama || "-",
-        periode: periodLabel(p.periode), jumlah: rp(kurang),
-        sisa: p.dibayar ? " (sisa dari tagihan " + rp(p.tagihan) + ")" : "",
-        tunggakan: rp(kw.tunggakan), sisaKontrak: rp(kw.sisa)
       });
       window.open("https://wa.me/" + normHp(t.hp) + "?text=" + encodeURIComponent(pesan), "_blank", "noopener");
     };
@@ -5419,28 +5284,6 @@ function bindAdmin() {
       if (bk && (bk.bukti || []).length) openLightbox(bk.bukti.map(function (x) { return { s: x.s, l: x.l || "Bukti DP" }; }), 0);
     };
   });
-  root.querySelectorAll("[data-per]").forEach(function (b) {
-    b.onclick = function () { ui.periode = shiftPeriod(ui.periode, Number(b.dataset.per)); renderAdmin(); };
-  });
-  root.querySelectorAll("[data-thn]").forEach(function (b) {
-    b.onclick = function () { ui.tahun += Number(b.dataset.thn); renderAdmin(); };
-  });
-
-  var gen = root.querySelector('[data-act="gen-tagihan"]');
-  if (gen) gen.onclick = function () {
-    var p = tab === "pembayaran" ? ui.periode : periodNow();
-    var n = buatTagihan(p);
-    var lewat = buatTagihan.lewat || 0;
-    if (n) {
-      touch(); renderAdmin();
-      toast(n + " tagihan " + periodLabel(p) + " dibuat" +
-        (lewat ? ", " + lewat + " penghuni dilewati karena sudah lunas" : ""));
-    } else if (lewat) {
-      toast(lewat + " penghuni sudah lunas seluruh masa sewanya, tidak ada tagihan baru untuk " + periodLabel(p));
-    } else {
-      toast("Semua penghuni aktif sudah punya tagihan " + periodLabel(p));
-    }
-  };
   var kb = root.querySelector('[data-act="kamar-baru"]');
   if (kb) kb.onclick = function () { modalKamar("baru"); };
   var nb = root.querySelector('[data-act="tenant-baru"]');
@@ -5448,7 +5291,11 @@ function bindAdmin() {
   var bb = root.querySelector('[data-act="booking-baru"]');
   if (bb) bb.onclick = function () { modalBooking(); };
   var ec = root.querySelector('[data-act="export-csv"]');
-  if (ec) ec.onclick = function () { simpanBerkas("pembayaran-kost-mahira.csv", csvData(), "text/csv"); };
+  if (ec) ec.onclick = function () { simpanBerkas("penghuni-kost-mahira.csv", csvData(), "text/csv"); };
+  ["penghuni", "booking"].forEach(function (j) {
+    var b = root.querySelector('[data-act="reset-' + j + '"]');
+    if (b) b.onclick = function () { modalReset(j); };
+  });
   var bk = root.querySelector('[data-act="backup"]');
   if (bk) bk.onclick = function () { simpanBerkas("backup-kost-mahira.json", JSON.stringify(S, null, 2), "application/json"); };
   var rs = root.querySelector('[data-act="restore"]');
@@ -5569,7 +5416,6 @@ function bindAdmin() {
         var tambah = root.querySelector("#imporBaru").checked;
         if (!confirm("Terapkan tarif baru ini? Tarif kamar akan diganti dan angsuran penghuni dihitung ulang.")) return;
         var h = terapkanHarga(cek, tambah);
-        S.rooms.forEach(function (k) { segarkanTagihan(k.id); });
         touch(); renderAdmin();
         toast(h.diubah + " kamar diperbarui" + (h.ditambah ? ", " + h.ditambah + " kamar baru ditambahkan" : ""));
       };

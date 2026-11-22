@@ -1,0 +1,5 @@
+{
+  "serverUrl": "https://script.google.com/macros/s/XXXXXXXX/exec",
+  "supabaseUrl": "https://xxxxxxxx.supabase.co",
+  "supabaseAnonKey": "sb_publishable_xxxxxxxxxxxxxxxx"
+}
