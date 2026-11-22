@@ -20,6 +20,9 @@ Sananwetan, Kota Blitar, Jawa Timur 66137. WhatsApp admin: 0851-3323-8381.
 | `situs/foto/` | Foto parkir yang pelat nomornya sudah disamarkan. |
 | `situs/vercel.json` | Aturan alamat, pengalihan, dan cache untuk Vercel. |
 | `situs/netlify.toml` | Aturan yang sama untuk Netlify (cadangan). |
+| `situs/konfigurasi.contoh.json` | Contoh isian konfigurasi, termasuk Supabase. |
+| `supabase/skema.sql` | Skema tabel + aturan keamanan untuk Supabase. |
+| `supabase/PANDUAN.md` | Langkah menyambungkan aplikasi ke Supabase. |
 | `situs/kost-server.gs` | Kode Google Apps Script (dipasang di sisi Google, bukan di situs). |
 | `situs/panduan-server.md` | Panduan memasang server Apps Script. |
 | `alat/` | Skrip bantu, mis. penyamar pelat nomor kendaraan. |

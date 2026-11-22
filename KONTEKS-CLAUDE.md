@@ -65,8 +65,7 @@ Urutan di dalam `appjs`:
    `galeriFasum`, `fotoUrl`, `imgTag`.
 10. **Halaman publik** — `renderPublic()` dan pembantunya.
 11. **Panel admin** — `renderLogin()`, `renderAdmin()`, `viewDashboard()`,
-    `viewKamar()`, `viewPenghuni()`, `viewPembayaran()`, `viewBooking()`,
-    `viewLaporan()`, `viewPengaturan()`.
+    `viewKamar()`, `viewPenghuni()`, `viewBooking()`, `viewPengaturan()`.
 12. **Modal & pengikat kejadian** — `openModal`, `formPenghuni`, `modalKamar`,
     `bindPublic()`, `bindAdmin()`.
 13. **`boot()`** di paling bawah.
@@ -133,43 +132,21 @@ tidak akan berpengaruh bagi pengunjung.
 
 ---
 
-## 5b. Buku kewajiban dan pembayaran fleksibel
+## 5b. Tidak ada pembukuan keuangan (sejak 22 November 2026)
 
-Kewajiban seorang penghuni = `t.tarif × t.bulanKontrak`. Karena `t.tarif`
-sudah memuat diskon, patungan, potongan DP, dan kondisi khusus, angka ini
-otomatis benar tanpa disimpan terpisah.
+Atas permintaan pemilik, seluruh sisi penagihan dihapus supaya aplikasinya
+sederhana. Yang **sudah tidak ada lagi**: menu Pembayaran, menu Laporan,
+buku kewajiban, tagihan per bulan, tunggakan, alokasi setoran, dan
+"kondisi khusus" per penghuni. Fungsi `hitungKewajiban`, `buatTagihan`,
+`alokasiSetoran`, `rapikanTagihan`, `modalBayar`, dan kawan-kawannya sudah
+dibuang dari kode.
 
-Fungsi intinya:
+Yang **tetap ada**: harga kamar, skema diskon lama sewa, simulasi biaya di
+halaman depan, dan kolom "Tarif/bln" di buku penghuni (sekadar catatan,
+tidak dipakai menagih). `S.payments` masih ada di state tetapi selalu kosong
+— dibiarkan agar struktur data lama tidak pecah.
 
-| Fungsi | Tugas |
-|---|---|
-| `hitungKewajiban(t)` | total, ditagih, dibayar, sisa, belumDitagih, lunas, tunggakan, bulanLunas, kelebihan |
-| `alokasiSetoran(id, jumlah, info)` | membagi satu setoran ke bulan-bulan yang belum lunas, paling awal dulu; membuat tagihan bulan berikutnya bila perlu |
-| `rapikanTagihan(id)` | menyesuaikan tagihan yang **belum ada uangnya** agar jumlah seluruh tagihan tidak melebihi kewajiban; menghapus tagihan kosong yang tak lagi diperlukan |
-| `buatTagihan(periode)` | menerbitkan tagihan satu bulan, melewati penghuni yang sudah lunas (`buatTagihan.lewat` menghitung yang dilewati) |
-| `periodeBerikut(t)` | bulan kontrak paling awal yang belum punya tagihan |
-
-Aturan yang dipegang:
-
-- Satu setoran boleh menutup berapa pun bulan — per bulan, lunas di awal,
-  atau sebagian. Pembagiannya otomatis.
-- Tagihan yang **sudah ada pembayarannya tidak pernah diubah** oleh
-  `rapikanTagihan`. Ini menjaga riwayat kas tetap jujur.
-- Jumlah seluruh `p.tagihan` seorang penghuni tidak pernah melebihi
-  kewajiban kontraknya.
-- Bila kewajiban sudah lunas, `buatTagihan` tidak menerbitkan tagihan lagi.
-- Kurang bayar tidak digabung ke tagihan bulan berikutnya. Tagihan tiap bulan
-  tetap satu porsi; kekurangannya muncul sebagai **tunggakan** di tabel
-  pembayaran, buku penghuni, modal pembayaran, dan pesan penagihan WhatsApp
-  (`{tunggakan}` dan `{sisaKontrak}`). Ini disengaja supaya pembukuan per
-  bulan tetap bisa dibaca.
-
-Modal **Catat pembayaran** memakai kolom "Jumlah setoran yang diterima"
-(uang baru yang masuk), bukan mengetik ulang total. Ada tombol cepat
-(bulan ini / semua tunggakan / lunasi kontrak) dan bagian
-"Perbaiki angka bulan ini secara manual" untuk membetulkan salah catat.
-
----
+Jangan menghidupkan kembali bagian ini tanpa diminta.
 
 ## 6. Foto
 
@@ -283,6 +260,68 @@ otomatis dari `Object.keys(WA_BAWAAN)` — tidak perlu menyentuh tampilan admin.
 
 ---
 
+## 10a. Supabase (penyimpanan utama sejak 22 November 2026)
+
+Aplikasi bisa memakai salah satu dari dua penyimpanan, dipilih otomatis:
+
+| Terpasang | Dipakai |
+|---|---|
+| `supabaseUrl` + `supabaseAnonKey` ada di `konfigurasi.json` | **Supabase** |
+| hanya `serverUrl` | Google Apps Script (lama) |
+| tidak ada keduanya | localStorage saja |
+
+Proyek yang sudah berjalan: `kost-mahira`,
+`https://mofefpeikzzakftfoptq.supabase.co`, wilayah ap-southeast-1.
+Kuncinya sudah ada di `situs/konfigurasi.json`. Rinciannya di
+`supabase/PANDUAN.md`.
+
+Kode Supabase ada di satu blok bernama `SB` dengan fungsi `sbAktif`,
+`sbPasang`, `sbMinta`, `sbMasuk`, `sbMuatPublik`, `sbMuatAdmin`, `sbSimpan`,
+`sbKirimBooking`, dan `sbBuangYangHilang`. Dipanggil lewat cabang di dalam
+`srvMuatPublik`, `srvSimpan`, `srvSegarkanAdmin`, dan `srvKirimBooking`,
+sehingga sisa aplikasi tidak perlu tahu penyimpanan mana yang aktif.
+
+Tiga tabel, lihat `supabase/skema.sql`:
+
+- `kost_pengaturan` — satu baris jsonb berisi settings, rooms, fasilitas,
+  ulasan, partners, ketentuan, peraturan. Boleh dibaca umum.
+- `kost_penghuni` — satu baris per penghuni, kolom datar supaya terbaca di
+  Table Editor, plus kolom `data` jsonb berisi objek lengkapnya (termasuk
+  foto KTP). **Tertutup untuk anon.**
+- `kost_booking` — anon boleh INSERT, hanya admin yang boleh membaca.
+
+Hal yang mudah terlewat:
+
+- Tanpa SDK Supabase. Semua lewat `fetch` ke REST API, mengikuti aturan
+  "tanpa pustaka luar".
+- Kuncinya bentuk baru (`sb_publishable_...`), bukan JWT `eyJ...` lama.
+  Dipakai sebagai header `apikey` sekaligus `Authorization: Bearer`
+  selama belum ada token admin. Sudah diuji, keduanya diterima.
+- Proyek dibuat dengan "Grant API access to new tables automatically"
+  **mati**, jadi `skema.sql` memberi `grant` satu per satu. Kalau nanti
+  menambah tabel, hak aksesnya harus ditulis sendiri atau PostgREST
+  menjawab `401 permission denied` — bukan RLS yang salah.
+- Balasan `Prefer: return=minimal` **berbadan kosong**. `sbMinta` membaca
+  `r.text()` dulu, jangan langsung `r.json()` — ini pernah jadi bug.
+- `muatKonfigurasi()` membaca Supabase **terpisah** dari `KONFIG.url`,
+  karena alamat Apps Script tertanam di `index.html` dan dulu membuat
+  pembacaan berhenti lebih awal.
+- `sbMuatPublik()` mengembalikan string `"kosong"` (bukan `false`) saat
+  belum ada data sama sekali. `srvMuatPublik` memakai itu untuk jatuh
+  kembali ke `srvMuatPublikLama()`, supaya halaman depan tidak kosong di
+  masa pindahan. Jangan ubah jadi boolean.
+- Saat memakai Supabase, admin masuk dengan **email + kata sandi**
+  (Supabase Auth), bukan kode PIN. Layar `renderLogin()` menyesuaikan sendiri.
+- `sbBuangYangHilang` menghapus baris yang sudah tidak ada di aplikasi,
+  supaya "Reset data penghuni" benar-benar bersih sampai ke server.
+- Anon key memang ikut terkirim ke browser. Yang menjaga data adalah RLS
+  dan grant, bukan kerahasiaan key. Jangan pernah menaruh secret key atau
+  service_role key di repo.
+- Ada proyek Supabase lain di akun yang sama bernama `qowiy`. Itu aplikasi
+  yang berbeda. Jangan disentuh.
+
+---
+
 ## 10b. Penerbitan situs (hosting)
 
 Isi folder `situs/` adalah yang diterbitkan. Dua berkas aturan hidup
@@ -332,6 +371,9 @@ memakai alamat server lama.
 - Kalimat WhatsApp memakai "Terima kasih banyak", bukan "Jazakumullah khairan"
   — pemilik ingin bahasa yang lebih akrab.
 - Sapaan "Mbak" pada pesan admin ke penghuni sudah sesuai: penghuninya muslimah.
+- Kalimat di bawah judul halaman depan **dihitung dari data**
+  (`kalimatRingkas()`), bukan teks tetap. Jangan dikembalikan jadi teks mati.
+- Menu Pembayaran dan Laporan dihapus atas permintaan pemilik. Lihat 5b.
 - Kurang bayar **tidak** ditumpuk ke tagihan bulan berikutnya; ditampilkan
   sebagai tunggakan. Mengubah ini akan merusak kecocokan antara jumlah
   tagihan dan kewajiban kontrak.

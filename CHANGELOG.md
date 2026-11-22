@@ -2,6 +2,27 @@
 
 Urut dari yang terbaru. Tanggal mengikuti saat perubahan dikerjakan.
 
+## 22 November 2026 — penyederhanaan + Supabase
+
+- **Kalimat beranda mengikuti data.** "23 kamar dalam 4 blok..." kini dihitung
+  dari data kamar dan fasilitas di panel admin, jadi berubah sendiri begitu
+  kamar atau fasilitas ditambah.
+- **Bagian keuangan dihapus.** Menu Pembayaran dan Laporan, buku kewajiban,
+  tagihan, tunggakan, dan kondisi khusus dibuang. Harga kamar, diskon lama
+  sewa, dan simulasi biaya di halaman depan tetap ada.
+- **Reset data penghuni.** Tombol baru di Pengaturan, berikut reset data
+  booking. Berlapis: tawaran unduh cadangan dulu dan wajib mengetik HAPUS.
+- **Supabase dipasang.** Proyek `kost-mahira` di Singapura, tiga tabel,
+  RLS aktif, dan hak akses diberikan satu per satu (lihat
+  `supabase/skema.sql`). Diuji langsung ke server: pengunjung bisa membaca
+  pengaturan dan mengirim booking, tetapi ditolak `401` saat mencoba
+  membaca data penghuni maupun daftar booking.
+- **Jaring pengaman masa pindahan.** Selama tabel Supabase masih kosong
+  dan `serverUrl` masih ada, halaman depan otomatis jatuh kembali membaca
+  Google Apps Script, jadi tidak ada jeda halaman kosong.
+- Dasbor admin diganti: okupansi, kamar kosong, booking menunggu, dan
+  kontrak jatuh tempo — tanpa angka pemasukan.
+
 ## 20 November 2026 — siap pindah ke Vercel
 
 - Ditambahkan `situs/vercel.json`: alamat `/admin` (rewrite, alamat tetap bersih),
