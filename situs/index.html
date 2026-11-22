@@ -1101,7 +1101,9 @@ function labelSewa(r) {
   if (r.status === "perbaikan") return "Sedang perbaikan";
   var sampai = sewaSampai(r);
   var awalan = r.status === "booking" ? "Dibooking sampai " : "Terisi sampai ";
-  if (!sampai) return r.status === "booking" ? "Sedang dibooking" : "Sedang terisi";
+  /* Tanpa tanggal berakhir tidak ada yang berguna untuk disampaikan,
+     jadi dikosongkan dan pemanggilnya menyembunyikan barisnya. */
+  if (!sampai) return "";
   var sisa = daysTo(sampai);
   var ekor = "";
   if (sisa !== null && sisa >= 0) ekor = sisa === 0 ? " &middot; hari ini" : " &middot; " + sisa + " hari lagi";
@@ -3044,10 +3046,14 @@ function roomCards() {
       '<div class="room-top"><div><h3>' + esc(r.nama) + "</h3>" +
       "<small>Lantai " + r.lantai + " &middot; " + r.ukuran + " m &middot; " + String(r.luas).replace(".", ",") + " m&sup2;</small></div>" +
       '<span class="chip ' + r.status + '"><i class="dot"></i>' + statusLabel(r.status) + "</span></div>" +
-      '<div class="masa ' + (r.status === "kosong" ? "siap" : "") + '">' +
-      '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
-      '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>' +
-      labelSewa(r) + "</div>" +
+      (function () {
+        var masa = labelSewa(r);
+        if (!masa) return "";
+        return '<div class="masa ' + (r.status === "kosong" ? "siap" : "") + '">' +
+          '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
+          '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>' +
+          masa + "</div>";
+      })() +
       '<div class="spec">' +
       "<span><i>Kamar mandi</i><br>" + r.km + "</span>" +
       "<span><i>Pendingin</i><br>" + r.dingin + "</span>" +
@@ -3175,10 +3181,18 @@ function modalDetailPublik(id) {
     ["Luas", String(r.luas).replace(".", ",") + " m&sup2;"], ["Lantai", r.lantai]].map(function (x) {
       return "<div><i>" + x[0] + "</i><b>" + x[1] + "</b></div>";
     }).join("") + "</div>" +
-    '<div class="note' + (r.status === "kosong" ? "" : " tegas") + '">Masa sewa: <b>' + labelSewa(r) + "</b>" +
-    (r.status === "kosong"
-      ? ". Kamar ini belum ada penghuninya, bisa langsung dibooking."
-      : ". Setelah tanggal tersebut kamar kembali tersedia &mdash; silakan masuk daftar tunggu bila ingin kamar ini.") + "</div>" +
+    (function () {
+      var masa = labelSewa(r);
+      var kelas = 'class="note' + (r.status === "kosong" ? "" : " tegas") + '"';
+      if (!masa) {
+        return "<div " + kelas + ">Kamar ini sedang tidak tersedia. " +
+          "Silakan masuk daftar tunggu bila ingin kamar ini.</div>";
+      }
+      return "<div " + kelas + ">Masa sewa: <b>" + masa + "</b>" +
+        (r.status === "kosong"
+          ? ". Kamar ini belum ada penghuninya, bisa langsung dibooking."
+          : ". Setelah tanggal tersebut kamar kembali tersedia &mdash; silakan masuk daftar tunggu bila ingin kamar ini.") + "</div>";
+    })() +
     '<div class="tier"><div class="tier-row head"><span>Lama sewa</span><span>Diskon</span><span>Harga per bulan</span></div>' +
     '<div class="tier-row"><span>Tarif normal</span><span>&mdash;</span><b class="tnum">' + rp(r.tarif) + "</b></div>" +
     tiers.map(function (t) {
