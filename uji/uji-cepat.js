@@ -81,6 +81,16 @@ async function halamanBaru(ctx, opsi) {
         .every(function (f) { return /^foto\//.test(f.s); });
     })));
 
+  const lead = await p.locator(".lead").innerText();
+  periksa("kalimat beranda mengikuti data kamar & fasilitas",
+    /^23 kamar dalam 4 blok/.test(lead) && /Fasilitas bersama/.test(lead), lead.slice(0, 70) + "...");
+
+  periksa("lapisan Supabase siap dipakai",
+    await p.evaluate(function () {
+      return typeof sbAktif === "function" && typeof sbSimpan === "function" &&
+        typeof sbMuatAdmin === "function" && sbAktif() === false;
+    }), "belum dikonfigurasi, jadi aplikasi masih memakai Apps Script");
+
   const pesanWa = await p.evaluate(function () {
     return new URL(document.querySelector(".fab").href).searchParams.get("text");
   });
@@ -130,12 +140,25 @@ async function halamanBaru(ctx, opsi) {
   periksa("tetap di panel setelah data server datang",
     (await p3.locator(".adm-tabs").count()) === 1);
 
-  periksa("semua menu admin ada",
-    (await p3.locator(".adm-tabs button").count()) === 7);
+  periksa("menu admin sesuai (tanpa Pembayaran & Laporan)",
+    (await p3.locator(".adm-tabs button").count()) === 5,
+    (await p3.locator(".adm-tabs button").allInnerTexts()).join(" | "));
+  periksa("tidak ada lagi fungsi keuangan",
+    await p3.evaluate(function () {
+      return typeof hitungKewajiban === "undefined" &&
+        typeof buatTagihan === "undefined" &&
+        typeof modalBayar === "undefined";
+    }));
   await p3.evaluate(function () { tab = "pengaturan"; renderAdmin(); });
   await p3.waitForTimeout(600);
   periksa("editor teks WhatsApp tersedia",
-    (await p3.locator("[data-wa]").count()) === 11);
+    (await p3.locator("[data-wa]").count()) === 10,
+    (await p3.locator("[data-wa]").count()) + " templat");
+  await p3.evaluate(function () { tab = "pengaturan"; renderAdmin(); });
+  await p3.waitForTimeout(600);
+  periksa("tombol reset data penghuni & booking ada",
+    (await p3.locator('[data-act="reset-penghuni"]').count()) === 1 &&
+    (await p3.locator('[data-act="reset-booking"]').count()) === 1);
   await p3.close();
 
   await b.close();
