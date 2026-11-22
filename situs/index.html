@@ -115,9 +115,9 @@ a{color:var(--brand);text-decoration:none}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;
   font-weight:600;letter-spacing:.01em;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line-soft)}
-.chip.kosong{background:var(--surface-2);color:var(--muted)}
+.chip.kosong{background:var(--ok-soft);color:var(--ok);border-color:transparent}
 .chip.booking{background:var(--warn-soft);color:var(--warn);border-color:transparent}
-.chip.terisi{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.chip.terisi{background:var(--surface-2);color:var(--muted)}
 .chip.perbaikan{background:var(--bad-soft);color:var(--bad);border-color:transparent}
 .chip.lunas{background:var(--ok-soft);color:var(--ok);border-color:transparent}
 .chip.dp{background:var(--warn-soft);color:var(--warn);border-color:transparent}
@@ -174,8 +174,7 @@ img.mark{width:36px;height:36px;border-radius:11px;flex:none;object-fit:cover;ba
 }
 .room{cursor:pointer}
 .room-cta{font-size:13px;font-weight:700;color:var(--brand)}
-.masa{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--warn);
-  background:var(--warn-soft);border-radius:8px;padding:6px 9px;line-height:1.3}
+.masa{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted);background:var(--surface-2);border-radius:8px;padding:6px 9px;line-height:1.3}
 .masa.siap{color:var(--ok);background:var(--ok-soft)}
 .masa svg{flex:none}
 button.avail-row{cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
@@ -505,7 +504,8 @@ footer.site{border-top:1px solid var(--line-soft);padding:26px 0;font-size:12.5p
 .kmr b{font-family:var(--display);font-size:15px}
 .kmr small{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kmr .bar{height:3px;border-radius:2px;background:var(--line)}
-.kmr[data-st="terisi"] .bar{background:var(--ok)}
+.kmr[data-st="terisi"] .bar{background:var(--muted)}
+.kmr[data-st="kosong"] .bar{background:var(--ok)}
 .kmr[data-st="booking"] .bar{background:var(--gold)}
 .kmr[data-st="perbaikan"] .bar{background:var(--bad)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
