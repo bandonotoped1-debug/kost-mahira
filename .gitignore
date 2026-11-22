@@ -1,0 +1,13 @@
+# jangan pernah menaruh data penghuni di repo
+*-penghuni*.csv
+*-penghuni*.xlsx
+ekspor-*.json
+ktp-*
+bukti-*
+
+# berkas sementara
+node_modules/
+.DS_Store
+Thumbs.db
+*.zip
+*.log
