@@ -2801,7 +2801,9 @@ var termurah = berdua.length
       var min = Math.min.apply(null, rs.map(function (r) { return r.tarif; }));
       return '<button class="avail-row" data-blok-jump="' + esc(b) + '"><div><b>Blok ' + esc(b) + "</b>" +
         "<small>Lantai " + lantaiBlok(b) + " &middot; " + rs.length + " kamar &middot; mulai " + rpk(min) + "</small></div>" +
-        '<span class="chip ' + (k ? "terisi" : "kosong") + '"><i class="dot"></i>' + (k ? k + " kosong" : "penuh") + "</span></button>";
+        /* Kelas lencana mengikuti arti warnanya: ada kamar kosong -> hijau
+           (kelas "kosong"), blok penuh -> abu (kelas "terisi"). */
+        '<span class="chip ' + (k ? "kosong" : "terisi") + '"><i class="dot"></i>' + (k ? k + " kosong" : "penuh") + "</span></button>";
     }).join("") +
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px">' +
     '<small class="muted" style="font-size:11.5px" data-srv-status>' + esc(srvStatusText()) + "</small>" +
