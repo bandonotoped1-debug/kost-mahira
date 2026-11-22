@@ -62,8 +62,13 @@ async function halamanBaru(ctx, opsi) {
   periksa("statistik harga memakai tarif patungan",
     /orang/.test(hargaMulai), hargaMulai.replace(/\n/g, " | "));
 
-  periksa("kamar kosong berlabel siap dihuni",
-    /Siap dihuni/.test(await p.locator(".room .masa").first().innerText()));
+  periksa("kartu kamar tidak lagi menampilkan baris masa sewa",
+    (await p.locator(".room .masa").count()) === 0);
+
+  const lencana = (await p.locator(".room .chip").allInnerTexts()).join(" ");
+  periksa("tidak ada sisa teks tanggal sewa di kartu kamar",
+    !/Terisi sampai|Dibooking sampai|Sedang terisi|Siap dihuni sekarang/
+      .test(await p.locator("#kamar").innerText()), lencana.slice(0, 60));
 
   const fasum = await p.evaluate(function () { return galeriFasum().length; });
   const fotoKamar = await p.evaluate(function () { return semuaFotoKamar().length; });
