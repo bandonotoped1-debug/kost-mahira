@@ -174,9 +174,6 @@ img.mark{width:36px;height:36px;border-radius:11px;flex:none;object-fit:cover;ba
 }
 .room{cursor:pointer}
 .room-cta{font-size:13px;font-weight:700;color:var(--brand)}
-.masa{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted);background:var(--surface-2);border-radius:8px;padding:6px 9px;line-height:1.3}
-.masa.siap{color:var(--ok);background:var(--ok-soft)}
-.masa svg{flex:none}
 button.avail-row{cursor:pointer;text-align:left;font:inherit;color:inherit;width:100%}
 button.avail-row:hover{border-color:var(--brand)}
 .denah{display:flex;flex-direction:column;gap:8px;padding:16px;border-radius:var(--r);
@@ -1077,38 +1074,7 @@ function kamarBisaDibooking(id) {
 }
 function room(id) { return S.rooms.filter(function (r) { return r.id === id; })[0] || null; }
 function tenant(id) { return S.tenants.filter(function (t) { return t.id === id; })[0] || null; }
-/* ---------- masa sewa kamar ----------
-   Tanggal kamar kembali kosong = tanggal keluar penghuni aktif yang paling akhir.
-   Untuk kamar yang sedang dibooking dipakai perkiraan dari tanggal masuk + lama sewa. */
-function sewaSampai(r) {
-  if (!r) return "";
-  var akhir = "";
-  activeTenants(r.id).forEach(function (t) {
-    if (t.keluar && t.keluar > akhir) akhir = t.keluar;
-  });
-  if (akhir) return akhir;
-  (S.bookings || []).forEach(function (b) {
-    if (b.status !== "aktif" || b.roomId !== r.id) return;
-    var sampai = addMonths(b.masuk || todayISO(), Number(b.bulan) || 1);
-    if (sampai && sampai > akhir) akhir = sampai;
-  });
-  return akhir;
-}
 /* Keterangan singkat masa sewa untuk ditampilkan ke calon penyewa. */
-function labelSewa(r) {
-  if (!r) return "";
-  if (r.status === "kosong") return "Siap dihuni sekarang";
-  if (r.status === "perbaikan") return "Sedang perbaikan";
-  var sampai = sewaSampai(r);
-  var awalan = r.status === "booking" ? "Dibooking sampai " : "Terisi sampai ";
-  /* Tanpa tanggal berakhir tidak ada yang berguna untuk disampaikan,
-     jadi dikosongkan dan pemanggilnya menyembunyikan barisnya. */
-  if (!sampai) return "";
-  var sisa = daysTo(sampai);
-  var ekor = "";
-  if (sisa !== null && sisa >= 0) ekor = sisa === 0 ? " &middot; hari ini" : " &middot; " + sisa + " hari lagi";
-  return awalan + fdate(sampai) + ekor;
-}
 function activeTenants(roomId) {
   return S.tenants.filter(function (t) { return t.status === "aktif" && (!roomId || t.roomId === roomId); });
 }
@@ -3046,14 +3012,6 @@ function roomCards() {
       '<div class="room-top"><div><h3>' + esc(r.nama) + "</h3>" +
       "<small>Lantai " + r.lantai + " &middot; " + r.ukuran + " m &middot; " + String(r.luas).replace(".", ",") + " m&sup2;</small></div>" +
       '<span class="chip ' + r.status + '"><i class="dot"></i>' + statusLabel(r.status) + "</span></div>" +
-      (function () {
-        var masa = labelSewa(r);
-        if (!masa) return "";
-        return '<div class="masa ' + (r.status === "kosong" ? "siap" : "") + '">' +
-          '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
-          '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>' +
-          masa + "</div>";
-      })() +
       '<div class="spec">' +
       "<span><i>Kamar mandi</i><br>" + r.km + "</span>" +
       "<span><i>Pendingin</i><br>" + r.dingin + "</span>" +
@@ -3181,18 +3139,12 @@ function modalDetailPublik(id) {
     ["Luas", String(r.luas).replace(".", ",") + " m&sup2;"], ["Lantai", r.lantai]].map(function (x) {
       return "<div><i>" + x[0] + "</i><b>" + x[1] + "</b></div>";
     }).join("") + "</div>" +
-    (function () {
-      var masa = labelSewa(r);
-      var kelas = 'class="note' + (r.status === "kosong" ? "" : " tegas") + '"';
-      if (!masa) {
-        return "<div " + kelas + ">Kamar ini sedang tidak tersedia. " +
-          "Silakan masuk daftar tunggu bila ingin kamar ini.</div>";
-      }
-      return "<div " + kelas + ">Masa sewa: <b>" + masa + "</b>" +
-        (r.status === "kosong"
-          ? ". Kamar ini belum ada penghuninya, bisa langsung dibooking."
-          : ". Setelah tanggal tersebut kamar kembali tersedia &mdash; silakan masuk daftar tunggu bila ingin kamar ini.") + "</div>";
-    })() +
+    '<div class="note' + (r.status === "kosong" ? "" : " tegas") + '">' +
+    (r.status === "kosong"
+      ? "Kamar ini belum ada penghuninya, bisa langsung dibooking."
+      : r.status === "perbaikan"
+        ? "Kamar ini sedang diperbaiki dan belum disewakan."
+        : "Kamar ini sedang tidak tersedia. Silakan masuk daftar tunggu bila ingin kamar ini.") + "</div>" +
     '<div class="tier"><div class="tier-row head"><span>Lama sewa</span><span>Diskon</span><span>Harga per bulan</span></div>' +
     '<div class="tier-row"><span>Tarif normal</span><span>&mdash;</span><b class="tnum">' + rp(r.tarif) + "</b></div>" +
     tiers.map(function (t) {
