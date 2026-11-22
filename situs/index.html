@@ -3600,7 +3600,9 @@ function renderLogin() {
         '<input class="pinput" type="password" name="kode" placeholder="Kata sandi" autocomplete="current-password" required>'
       : '<input class="pinput" type="password" name="kode" placeholder="Kode admin" autocomplete="current-password" ' +
         'value="' + esc(kodeTersimpan) + '" required>') +
-    '<label class="sw" style="justify-content:center"><input type="checkbox" id="ingatKode"' + (kodeTersimpan ? " checked" : "") + "> Ingat kode di perangkat ini</label>" +
+    '<label class="sw" style="justify-content:center"><input type="checkbox" id="ingatKode"' +
+    ((sbAktif() ? emailTersimpan : kodeTersimpan) ? " checked" : "") + "> " +
+    (sbAktif() ? "Ingat email di perangkat ini" : "Ingat kode di perangkat ini") + "</label>" +
     '<button class="btn block" type="submit" id="masukBtn">Masuk</button>' +
     '<button class="btn ghost block" type="button" data-act="to-publik">Kembali ke halaman publik</button>' +
     '<p class="muted" style="font-size:12px;text-align:center">' +
@@ -5661,11 +5663,17 @@ function renderApp() {
   renderApp();
   muatKonfigurasi().then(function () {
     tandaiSegar();
+    /* Konfigurasi baru selesai dibaca setelah layar pertama digambar.
+       Kalau ternyata Supabase yang aktif, layar masuk harus digambar
+       ulang supaya memunculkan isian email + kata sandi, bukan kode PIN. */
+    if (view === "admin" && !unlocked && sbAktif()) renderLogin();
     if (!srvAktif()) return;
     /* Di layar masuk admin, data publik yang besar belum diperlukan.
-       Cukup satu panggilan ringan supaya server sudah "bangun" saat kode dikirim. */
-    if (view === "admin" && !unlocked) srvFetch("mode=cek").catch(function () { });
-    else srvMuatPublik(false, true);
+       Cukup satu panggilan ringan supaya server sudah "bangun" saat kode
+       dikirim. Supabase tidak perlu dibangunkan, jadi dilewati. */
+    if (view === "admin" && !unlocked) {
+      if (!sbAktif()) srvFetch("mode=cek").catch(function () { });
+    } else srvMuatPublik(false, true);
     srvPantau();
   });
   window.__inArtifact = !!(window.claude && typeof window.claude.use === "function");
