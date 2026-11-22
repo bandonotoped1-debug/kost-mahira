@@ -4144,7 +4144,15 @@ function viewPengaturan() {
     '<button class="btn sm" data-act="backup">Unduh cadangan (JSON)</button>' +
     '<button class="btn ghost sm" data-act="ekspor-csv">Unduh daftar penghuni (CSV)</button>' +
     '<button class="btn ghost sm" data-act="restore">Pulihkan dari cadangan</button>' +
+    (sbAktif() && KONFIG.url
+      ? '<button class="btn ghost sm" data-act="impor-lama">Ambil data dari server lama</button>'
+      : "") +
     "</div>" +
+    (sbAktif() && KONFIG.url && !S.tenants.length
+      ? '<p style="font-size:13px;color:var(--ink-2);margin-top:10px">' +
+        "Buku penghuni masih kosong, padahal server lama (Google Apps Script) masih terpasang. " +
+        'Tekan <b>Ambil data dari server lama</b> untuk memindahkan data penghuni dan booking ke Supabase.</p>'
+      : "") +
     '<div class="bahaya">' +
     '<b>Mengosongkan data</b>' +
     '<p>Tindakan di bawah menghapus data secara permanen dari aplikasi dan dari server bersama. ' +
@@ -5115,6 +5123,55 @@ function modalReset(jenis) {
     });
 }
 
+/* Memindahkan data dari Google Apps Script ke Supabase.
+
+   Dipakai sekali saat pindahan. Data publik (kamar, fasilitas, ulasan)
+   sudah ikut terbawa lewat halaman depan, tetapi buku penghuni dan
+   booking hanya bisa dibaca dengan kode admin lama, jadi kodenya
+   diminta di sini. */
+function modalImporLama() {
+  openModal("Ambil data dari server lama",
+    '<p style="font-size:13.5px">Data penghuni dan booking masih ada di Google Apps Script. ' +
+    "Masukkan <b>kode admin lama</b> (kode angka yang dipakai sebelum pindah ke Supabase), " +
+    "lalu datanya diambil dan dikirim ke Supabase.</p>" +
+    '<div class="note">Data yang sekarang ada di layar akan diganti oleh data dari server lama. ' +
+    "Unduh cadangan dulu kalau ragu.</div>" +
+    '<button class="btn ghost sm" id="imporCadangan" type="button">Unduh cadangan dulu</button>' +
+    '<label class="field" style="margin-top:6px"><span>Kode admin lama</span>' +
+    '<input id="imporKode" type="password" autocomplete="off" placeholder="Kode admin"></label>',
+    '<button class="btn ghost" data-close>Batal</button>' +
+    '<button class="btn" id="imporJalan">Ambil dan kirim</button>',
+    function (d) {
+      d.querySelector("#imporCadangan").onclick = function () {
+        simpanBerkas("cadangan-sebelum-impor-" + todayISO() + ".json", JSON.stringify(S, null, 2), "application/json");
+      };
+      d.querySelector("#imporJalan").onclick = function () {
+        var kode = String(d.querySelector("#imporKode").value || "").trim();
+        if (!kode) return toast("Kode admin lama belum diisi");
+        var tombol = d.querySelector("#imporJalan");
+        tombol.disabled = true; tombol.textContent = "Mengambil...";
+        srvFetch("mode=admin&kode=" + encodeURIComponent(kode))
+          .then(function (j) {
+            if (!j || j.ok !== true) throw new Error((j && j.error) || "kode admin lama tidak dikenal");
+            if (!j.data || !j.data.rooms) throw new Error("server lama tidak mengirim data");
+            pakaiDataServer(j.data);
+            tombol.textContent = "Mengirim ke Supabase...";
+            return sbSimpan();
+          })
+          .then(function () {
+            closeModal();
+            renderAdmin();
+            toast("Berhasil: " + S.tenants.length + " penghuni dan " +
+              (S.bookings || []).length + " booking sudah pindah ke Supabase.");
+          })
+          .catch(function (e) {
+            tombol.disabled = false; tombol.textContent = "Ambil dan kirim";
+            toast("Gagal: " + ((e && e.message) || e));
+          });
+      };
+    });
+}
+
 /* ---------- ekspor & backup ---------- */
 function csvData() {
   var head = ["Nama", "No HP", "Kamar", "Pekerjaan", "Institusi", "Masuk", "Lama kontrak",
@@ -5292,7 +5349,7 @@ function bindAdmin() {
   if (nb) nb.onclick = function () { formPenghuni(null); };
   var bb = root.querySelector('[data-act="booking-baru"]');
   if (bb) bb.onclick = function () { modalBooking(); };
-  var ec = root.querySelector('[data-act="export-csv"]');
+  var ec = root.querySelector('[data-act="ekspor-csv"]');
   if (ec) ec.onclick = function () { simpanBerkas("penghuni-kost-mahira.csv", csvData(), "text/csv"); };
   ["penghuni", "booking"].forEach(function (j) {
     var b = root.querySelector('[data-act="reset-' + j + '"]');
@@ -5302,6 +5359,8 @@ function bindAdmin() {
   if (bk) bk.onclick = function () { simpanBerkas("backup-kost-mahira.json", JSON.stringify(S, null, 2), "application/json"); };
   var rs = root.querySelector('[data-act="restore"]');
   if (rs) rs.onclick = function () { modalRestore(); };
+  var il = root.querySelector('[data-act="impor-lama"]');
+  if (il) il.onclick = function () { modalImporLama(); };
 
   var cari = root.querySelector("#cari");
   if (cari) {
